@@ -1,7 +1,7 @@
 
 import os
 from flask_admin import Admin
-from models import db, User, Resource, Comment, Favorites, Offering, Schedule, Drop, FavoriteOfferings
+from src.models import db, User, Resource, Comment, Favorites, Offering, Schedule, Drop, FavoriteOfferings
 from flask_admin.contrib.sqla import ModelView
 
 
