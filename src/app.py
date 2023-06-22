@@ -10,10 +10,12 @@ from src.utils import APIException, generate_sitemap
 from src.admin import setup_admin
 from src.models import db, User
 # from models import Person
+from src.routes import api
+
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
-
+app.register_blueprint(api, url_prefix="/api")
 db_url = os.getenv("DATABASE_URL")
 if db_url is not None:
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace(
@@ -54,5 +56,5 @@ def handle_hello():
 
 # this only runs if `$ python src/app.py` is executed
 if __name__ == '__main__':
-    PORT = int(os.environ.get('PORT', 3000))
+    PORT = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=PORT, debug=False)
