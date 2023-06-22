@@ -1,11 +1,17 @@
-FROM python:3-alpine3.10
+# Use an official Python runtime as a parent image
+FROM python:3.10-slim-buster
+
+# Set the working directory in the container to /app
 WORKDIR /app
 
-COPY . /app
+# Add the current directory contents into the container at /app
+ADD . /app
 
-RUN pip install -r requirements.txt
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Make port 3000 available to the world outside this container
 EXPOSE 3000
 
-CMD python3 -m gunicorn wsgi --bind 0.0.0.0:3000 --chdir ./
-
+# Run gunicorn when the container launches
+CMD gunicorn wsgi --bind 0.0.0.0:3000 --chdir ./
