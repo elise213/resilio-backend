@@ -116,9 +116,13 @@ def getCommentsByResourceId(resourceId):
 def getResources():
     resourceList = Resource.query.all()
     neLat = float(request.args.get("neLat", 0))
+
     neLng = float(request.args.get("neLng", 0))
+
     swLat = float(request.args.get("swLat", 0))
+
     swLng = float(request.args.get("swLng", 0))
+
     print("neLat:", neLat)
 
     mapList = []
