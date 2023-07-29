@@ -14,4 +14,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 3000
 
 # Run gunicorn when the container launches
-CMD gunicorn wsgi --bind 0.0.0.0:3000 --chdir ./
+# CMD gunicorn wsgi --bind 0.0.0.0:3000 --chdir ./
+CMD gunicorn --worker-class gevent wsgi --bind 0.0.0.0:3000 --chdir ./
