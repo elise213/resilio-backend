@@ -114,8 +114,12 @@ def getCommentsByResourceId(resourceId):
 
 
 @api.route('/getResources', methods=['GET'])
+# @cross_origin(origins=['http://localhost.com'])
 def getResources():
     resourceList = Resource.query.all()
+    print("TYPE RES", type(resourceList))
+    # resourceList.headers = ['Access-Control-Allow-Origin'] = '*'
+
     neLat = float(request.args.get("neLat", 0))
 
     neLng = float(request.args.get("neLng", 0))
@@ -162,15 +166,24 @@ def getResources():
     if "sunday" in request.args and request.args["sunday"] == "true":
         days_to_keep.append("sunday")
 
+    # if len(categories_to_keep) > 0 and len(days_to_keep) > 0:
+    #     filtered_resources = []
+    #     for r in resourceList:
+    #         if r.category in categories_to_keep and r.schedule is not None:
+    #             for day in days_to_keep:
+    #                 if getattr(r.schedule, day + "Start") is not None:
+    #                     filtered_resources.append(r)
+    #     resourceList = filtered_resources
     if len(categories_to_keep) > 0 and len(days_to_keep) > 0:
-        filtered_resources = []
+        filtered_resources = set()  # Use a set to prevent duplicates
         for r in resourceList:
             if r.category in categories_to_keep and r.schedule is not None:
                 for day in days_to_keep:
                     if getattr(r.schedule, day + "Start") is not None:
-                        filtered_resources.append(r)
+                        # Use set.add() to add unique resources
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # Convert set back to list
 
-        resourceList = filtered_resources
     elif len(categories_to_keep) > 0:
         resourceList = [
             r for r in resourceList if r.category in categories_to_keep]
@@ -183,6 +196,7 @@ def getResources():
                         filtered_resources.append(r)
         resourceList = filtered_resources
     new_resources = [r.serialize() for r in resourceList]
+    # new_resources.headers = ['Access-Control-Allow-Origin'] = '*'
     return jsonify(data=new_resources)
 
 
