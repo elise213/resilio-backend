@@ -11,7 +11,7 @@ from src.admin import setup_admin
 from src.models import db, User
 # from models import Person
 from src.routes import api
-
+from flask_basicauth import BasicAuth
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -23,7 +23,9 @@ if db_url is not None:
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
+app.config['BASIC_AUTH_USERNAME'] = 'resilio'
+app.config['BASIC_AUTH_PASSWORD'] = 'resilio1971'
+basic_auth = BasicAuth(app)
 MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
@@ -40,6 +42,7 @@ def handle_invalid_usage(error):
 
 
 @app.route('/')
+@basic_auth.required
 def sitemap():
     return generate_sitemap(app)
 
@@ -50,7 +53,6 @@ def handle_hello():
     response_body = {
         "msg": "Hello, this is your GET /user response "
     }
-
     return jsonify(response_body), 200
 
 
