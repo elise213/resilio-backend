@@ -178,29 +178,13 @@ def getBoundaryResults():
                         filtered_resources = [*set(filtered_resources)]
         resourceList = filtered_resources
     new_resources = [r.serialize() for r in resourceList]
-    # new_resources.headers = ['Access-Control-Allow-Origin'] = '*'
     return jsonify(data=new_resources)
 
 
 # get resources
-
 @api.route('/getResources', methods=['GET'])
-# @cross_origin(origins=['http://localhost.com'])
 def getResources():
     resourceList = Resource.query.all()
-    neLat = float(request.args.get("neLat", 0))
-    neLng = float(request.args.get("neLng", 0))
-    swLat = float(request.args.get("swLat", 0))
-    swLng = float(request.args.get("swLng", 0))
-    print("neLat:", neLat)
-    mapList = []
-    for r in resourceList:
-        if r.latitude is not None:
-            lat = float(r.latitude)
-            lng = float(r.longitude)
-            if lat <= neLat and lat >= swLat and lng <= neLng and lng >= swLng:
-                mapList.append(r)
-    resourceList = mapList
 
     categories_to_keep = []
     if "food" in request.args and request.args["food"] == "true":
@@ -236,7 +220,6 @@ def getResources():
                     if getattr(r.schedule, day + "Start") is not None:
                         filtered_resources.append(r)
         resourceList = filtered_resources
-
     elif len(categories_to_keep) > 0:
         resourceList = [
             r for r in resourceList if r.category in categories_to_keep]
@@ -250,6 +233,7 @@ def getResources():
                         filtered_resources = [*set(filtered_resources)]
         resourceList = filtered_resources
     new_resources = [r.serialize() for r in resourceList]
+
     # new_resources.headers = ['Access-Control-Allow-Origin'] = '*'
     return jsonify(data=new_resources)
 
