@@ -157,26 +157,25 @@ def getBoundaryResults():
         days_to_keep.append("sunday")
 
     if len(categories_to_keep) > 0 and len(days_to_keep) > 0:
-        filtered_resources = []
+        filtered_resources = set()  # use a set instead of a list
         for r in resourceList:
             if r.category in categories_to_keep and r.schedule is not None:
                 for day in days_to_keep:
                     if getattr(r.schedule, day + "Start") is not None:
-                        filtered_resources.append(r)
-        resourceList = filtered_resources
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # convert back to list
 
     elif len(categories_to_keep) > 0:
         resourceList = [
             r for r in resourceList if r.category in categories_to_keep]
     elif len(days_to_keep) > 0:
-        filtered_resources = []
+        filtered_resources = set()  # use a set
         for r in resourceList:
             if r.schedule is not None:
                 for day in days_to_keep:
                     if getattr(r.schedule, day + "Start") is not None:
-                        filtered_resources.append(r)
-                        filtered_resources = [*set(filtered_resources)]
-        resourceList = filtered_resources
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # convert back to list
     new_resources = [r.serialize() for r in resourceList]
     return jsonify(data=new_resources)
 
@@ -213,28 +212,26 @@ def getResources():
         days_to_keep.append("sunday")
 
     if len(categories_to_keep) > 0 and len(days_to_keep) > 0:
-        filtered_resources = []
+        filtered_resources = set()  # use a set
         for r in resourceList:
             if r.category in categories_to_keep and r.schedule is not None:
                 for day in days_to_keep:
                     if getattr(r.schedule, day + "Start") is not None:
-                        filtered_resources.append(r)
-        resourceList = filtered_resources
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # convert back to list
+
     elif len(categories_to_keep) > 0:
         resourceList = [
             r for r in resourceList if r.category in categories_to_keep]
     elif len(days_to_keep) > 0:
-        filtered_resources = []
+        filtered_resources = set()  # use a set
         for r in resourceList:
             if r.schedule is not None:
                 for day in days_to_keep:
                     if getattr(r.schedule, day + "Start") is not None:
-                        filtered_resources.append(r)
-                        filtered_resources = [*set(filtered_resources)]
-        resourceList = filtered_resources
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # convert back to list
     new_resources = [r.serialize() for r in resourceList]
-
-    # new_resources.headers = ['Access-Control-Allow-Origin'] = '*'
     return jsonify(data=new_resources)
 
 
