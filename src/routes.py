@@ -110,7 +110,77 @@ def getCommentsByResourceId(resourceId):
 
 # __________________________________________________RESOURCES
 
-# get map boundary results
+# new get boundary results
+
+
+@api.route('/getBResults', methods=['POST'])
+def getBResults():
+    resourceList = Resource.query.all()
+    bounds = request.get_json()
+    neLat = float(bounds["neLat"])
+    neLng = float(bounds["neLng"])
+    swLat = float(bounds["swLat"])
+    swLng = float(bounds["swLng"])
+    print("Coords", neLat, neLng, swLat, swLng)
+    mapList = []
+    for r in resourceList:
+        if r.latitude is not None:
+            lat = float(r.latitude)
+            lng = float(r.longitude)
+        if lat <= neLat and lat >= swLat and lng <= neLng and lng >= swLng:
+            mapList.append(r)
+        resourceList = mapList
+
+    categories_to_keep = []
+    if "food" in request.args and request.args["food"] == "true":
+        categories_to_keep.append("food")
+    if "health" in request.args and request.args["health"] == "true":
+        categories_to_keep.append("health")
+    if "shelter" in request.args and request.args["shelter"] == "true":
+        categories_to_keep.append("shelter")
+    if "hygiene" in request.args and request.args["hygiene"] == "true":
+        categories_to_keep.append("hygiene")
+
+    days_to_keep = []
+    if "monday" in request.args and request.args["monday"] == "true":
+        days_to_keep.append("monday")
+    if "tuesday" in request.args and request.args["tuesday"] == "true":
+        days_to_keep.append("tuesday")
+    if "wednesday" in request.args and request.args["wednesday"] == "true":
+        days_to_keep.append("wednesday")
+    if "thursday" in request.args and request.args["thursday"] == "true":
+        days_to_keep.append("thursday")
+    if "friday" in request.args and request.args["friday"] == "true":
+        days_to_keep.append("friday")
+    if "saturday" in request.args and request.args["saturday"] == "true":
+        days_to_keep.append("saturday")
+    if "sunday" in request.args and request.args["sunday"] == "true":
+        days_to_keep.append("sunday")
+
+    if len(categories_to_keep) > 0 and len(days_to_keep) > 0:
+        filtered_resources = set()  # use a set instead of a list
+        for r in resourceList:
+            if r.category in categories_to_keep and r.schedule is not None:
+                for day in days_to_keep:
+                    if getattr(r.schedule, day + "Start") is not None:
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # convert back to list
+
+    elif len(categories_to_keep) > 0:
+        resourceList = [
+            r for r in resourceList if r.category in categories_to_keep]
+    elif len(days_to_keep) > 0:
+        filtered_resources = set()  # use a set
+        for r in resourceList:
+            if r.schedule is not None:
+                for day in days_to_keep:
+                    if getattr(r.schedule, day + "Start") is not None:
+                        filtered_resources.add(r)
+        resourceList = list(filtered_resources)  # convert back to list
+    new_resources = [r.serialize() for r in resourceList]
+    return jsonify(data=new_resources)
+
+# get boundary results
 
 
 @api.route('/getBoundaryResults', methods=['GET'])
@@ -120,7 +190,7 @@ def getBoundaryResults():
     neLng = float(request.args.get("neLng", 0))
     swLat = float(request.args.get("swLat", 0))
     swLng = float(request.args.get("swLng", 0))
-    print("neLat:", neLat)
+    print("neLat:", neLat, neLng,)
     mapList = []
     for r in resourceList:
         if r.latitude is not None:
