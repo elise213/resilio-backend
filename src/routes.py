@@ -140,6 +140,10 @@ def getBResults():
         categories_to_keep.append("shelter")
     if "hygiene" in request.args and request.args["hygiene"] == "true":
         categories_to_keep.append("hygiene")
+    if "bathroom" in request.args and request.args["bathroom"] == "true":
+        categories_to_keep.append("bathroom")
+    if "work" in request.args and request.args["work"] == "true":
+        categories_to_keep.append("work")
 
     days_to_keep = []
     if "monday" in request.args and request.args["monday"] == "true":
