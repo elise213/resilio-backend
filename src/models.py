@@ -40,15 +40,16 @@ class Resource(db.Model):
     phone = db.Column(db.String(256), unique=False, nullable=True)
     category = db.Column(db.String(256), unique=False, nullable=True)
     website = db.Column(db.String(256), unique=False, nullable=True)
-    description = db.Column(db.String(500), unique=False, nullable=True)
+    description = db.Column(db.String(900), unique=False, nullable=True)
     latitude = db.Column(db.String(250), unique=False, nullable=True)
     longitude = db.Column(db.String(250), unique=False, nullable=True)
     image = db.Column(db.String(500), unique=False, nullable=True)
     image2 = db.Column(db.String(500), unique=False, nullable=True)
     logo = db.Column(db.String(500), unique=False, nullable=True)
     user_id = db.Column(db.Integer, unique=False, nullable=True)
-    comment = db.relationship("Comment", backref="resource", lazy=True)
-    schedule = db.relationship("Schedule", backref=("resource"), uselist=False)
+    comment = db.relationship("Comment", backref="Resource", lazy=True)
+    schedule = db.relationship(
+        "Schedule", backref="Resource", lazy=True, uselist=False)
 
     def __repr__(self):
         return f'<Resource {self.name}>'
@@ -70,6 +71,50 @@ class Resource(db.Model):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "schedule": serialized_schedule
+        }
+
+
+class Schedule(db.Model):
+    __tablename__ = 'Schedule'
+    id = db.Column(db.Integer, primary_key=True)
+    mondayStart = db.Column(db.String(256), nullable=True)
+    mondayEnd = db.Column(db.String(256), nullable=True)
+    tuesdayStart = db.Column(db.String(256), nullable=True)
+    tuesdayEnd = db.Column(db.String(256), nullable=True)
+    wednesdayStart = db.Column(db.String(256), nullable=True)
+    wednesdayEnd = db.Column(db.String(256), nullable=True)
+    thursdayStart = db.Column(db.String(256), nullable=True)
+    thursdayEnd = db.Column(db.String(256), nullable=True)
+    fridayStart = db.Column(db.String(256), nullable=True)
+    fridayEnd = db.Column(db.String(256), nullable=True)
+    saturdayStart = db.Column(db.String(256), nullable=True)
+    saturdayEnd = db.Column(db.String(256), nullable=True)
+    sundayStart = db.Column(db.String(256), nullable=True)
+    sundayEnd = db.Column(db.String(256), nullable=True)
+    resource_id = db.Column(
+        db.Integer, db.ForeignKey("Resource.id"), nullable=True)
+
+    def __repr__(self):
+        return f'<Schedule {self.id}>'
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "mondayStart": self.mondayStart,
+            "mondayEnd": self.mondayEnd,
+            "tuesdayStart": self.tuesdayStart,
+            "tuesdayEnd": self.tuesdayEnd,
+            "wednesdayStart": self.wednesdayStart,
+            "wednesdayEnd": self.wednesdayEnd,
+            "thursdayStart": self.thursdayStart,
+            "thursdayEnd": self.thursdayEnd,
+            "fridayStart": self.fridayStart,
+            "fridayEnd": self.fridayEnd,
+            "saturdayStart": self.saturdayStart,
+            "saturdayEnd": self.saturdayEnd,
+            "sundayStart": self.sundayStart,
+            "sundayEnd": self.sundayEnd,
+            "resource_id": self.resource_id,
         }
 
 
@@ -114,50 +159,6 @@ class Favorites(db.Model):
             "image": Resource.query.filter_by(name=self.name).first().image,
             "category": Resource.query.filter_by(name=self.name).first().category,
             "resource_id": Resource.query.filter_by(name=self.name).first().id,
-        }
-
-
-class Schedule(db.Model):
-    __tablename__ = 'Schedule'
-    id = db.Column(db.Integer, primary_key=True)
-    mondayStart = db.Column(db.String(256), nullable=True)
-    mondayEnd = db.Column(db.String(256), nullable=True)
-    tuesdayStart = db.Column(db.String(256), nullable=True)
-    tuesdayEnd = db.Column(db.String(256), nullable=True)
-    wednesdayStart = db.Column(db.String(256), nullable=True)
-    wednesdayEnd = db.Column(db.String(256), nullable=True)
-    thursdayStart = db.Column(db.String(256), nullable=True)
-    thursdayEnd = db.Column(db.String(256), nullable=True)
-    fridayStart = db.Column(db.String(256), nullable=True)
-    fridayEnd = db.Column(db.String(256), nullable=True)
-    saturdayStart = db.Column(db.String(256), nullable=True)
-    saturdayEnd = db.Column(db.String(256), nullable=True)
-    sundayStart = db.Column(db.String(256), nullable=True)
-    sundayEnd = db.Column(db.String(256), nullable=True)
-    resource_id = db.Column(
-        db.Integer, ForeignKey("Resource.id"), nullable=True)
-
-    def __repr__(self):
-        return f'<Schedule {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "mondayStart": self.mondayStart,
-            "mondayEnd": self.mondayEnd,
-            "tuesdayStart": self.tuesdayStart,
-            "tuesdayEnd": self.tuesdayEnd,
-            "wednesdayStart": self.wednesdayStart,
-            "wednesdayEnd": self.wednesdayEnd,
-            "thursdayStart": self.thursdayStart,
-            "thursdayEnd": self.thursdayEnd,
-            "fridayStart": self.fridayStart,
-            "fridayEnd": self.fridayEnd,
-            "saturdayStart": self.saturdayStart,
-            "saturdayEnd": self.saturdayEnd,
-            "sundayStart": self.sundayStart,
-            "sundayEnd": self.sundayEnd,
-            "resource_id": self.resource_id,
         }
 
 

@@ -122,11 +122,13 @@ def getBResults():
     swLat = float(bounds["swLat"])
     swLng = float(bounds["swLng"])
     print("Coords", neLat, neLng, swLat, swLng)
+    # print("resource list", resourceList)
     mapList = []
     for r in resourceList:
         if r.latitude is not None:
-            lat = float(r.latitude)
-            lng = float(r.longitude)
+            print("R LAT", r.latitude)
+            lat = float(r.latitude)if len(r.latitude) > 0 else 0.0
+            lng = float(r.longitude)if len(r.longitude) > 0 else 0.0
         if lat <= neLat and lat >= swLat and lng <= neLng and lng >= swLng:
             mapList.append(r)
         resourceList = mapList
@@ -144,6 +146,26 @@ def getBResults():
         categories_to_keep.append("bathroom")
     if "work" in request.args and request.args["work"] == "true":
         categories_to_keep.append("work")
+    if "wifi" in request.args and request.args["wifi"] == "true":
+        categories_to_keep.append("wifi")
+    if "crisis" in request.args and request.args["crisis"] == "true":
+        categories_to_keep.append("crisis")
+    if "substance" in request.args and request.args["substance"] == "true":
+        categories_to_keep.append("substance")
+    if "legal" in request.args and request.args["legal"] == "true":
+        categories_to_keep.append("legal")
+    if "sex" in request.args and request.args["sex"] == "true":
+        categories_to_keep.append("sex")
+    if "mental" in request.args and request.args["mental"] == "true":
+        categories_to_keep.append("mental")
+    if "women" in request.args and request.args["women"] == "true":
+        categories_to_keep.append("women")
+    if "youth" in request.args and request.args["youth"] == "true":
+        categories_to_keep.append("youth")
+    if "seniors" in request.args and request.args["seniors"] == "true":
+        categories_to_keep.append("seniors")
+    if "lgbtq" in request.args and request.args["lgbtq"] == "true":
+        categories_to_keep.append("lgbtq")
 
     days_to_keep = []
     if "monday" in request.args and request.args["monday"] == "true":
@@ -311,9 +333,9 @@ def getResources():
 
 # create resource
 @api.route("/createResource", methods=["POST"])
-@jwt_required()
+# @jwt_required()
 def create_resource():
-    user_id = get_jwt_identity()
+    # user_id = get_jwt_identity()
     request_body = request.get_json()
     if not request_body["name"]:
         return jsonify({"message": "Name is required"}), 400
@@ -329,30 +351,30 @@ def create_resource():
         description=request_body["description"],
         latitude=request_body["latitude"],
         longitude=request_body["longitude"],
-        image=request_body["picture"],
-        image2=request_body["picture2"],
-        user_id=user_id,
+        image=request_body["image"],
+        image2=request_body["image2"],
+        # user_id=user_id,
     )
     db.session.add(resource)
     db.session.commit()
+    days = request_body["days"]
     schedule = Schedule(
         resource_id=resource.id,
-        mondayStart=request_body["mondayStart"],
-        mondayEnd=request_body["mondayEnd"],
-        tuesday=request_body["tuesday"],
-        tuesdayEnd=request_body["tuesdayEnd"],
-        wednesdayStart=request_body["wednesdayStart"],
-        wednesdayEnd=request_body["wednesdayEnd"],
-        thursdayStart=request_body["thursdayStart"],
-        thursdayEnd=request_body["thursdayEnd"],
-        fridayStartStart=request_body["fridayStartStart"],
-        fridayStartEnd=request_body["fridayStartEnd"],
-        saturdayStart=request_body["saturdayStart"],
-        saturdayEnd=request_body["saturdayEnd"],
-        sundayStart=request_body["sundayStart"],
-        sundayEnd=request_body["sundayEnd"]
+        mondayStart=days["monday"]["start"],
+        mondayEnd=days["monday"]["end"],
+        tuesdayStart=days["tuesday"]["start"],
+        tuesdayEnd=days["tuesday"]["end"],
+        wednesdayStart=days["wednesday"]["start"],
+        wednesdayEnd=days["wednesday"]["end"],
+        thursdayStart=days["thursday"]["start"],
+        thursdayEnd=days["thursday"]["end"],
+        fridayStart=days["friday"]["start"],
+        fridayEnd=days["friday"]["end"],
+        saturdayStart=days["saturday"]["start"],
+        saturdayEnd=days["saturday"]["end"],
+        sundayStart=days["sunday"]["start"],
+        sundayEnd=days["sunday"]["end"]
     )
-    db.session.add(resource)
     db.session.add(schedule)
     db.session.commit()
     return jsonify({"created": "Thank you for creating a resource!", "status": "true"}), 200
@@ -410,6 +432,14 @@ def getCommentsByResourceId(resourceId):
     comments = Comment.query.filter_by(resource_id=resourceId).all()
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
+
+
+# get schedules
+@api.route('/getSchedules', methods=['GET'])
+def getSchedules():
+    schedules = Schedule.query.all()
+    serialized_schedule = [sch.serialize() for sch in schedules]
+    return serialized_schedule
 
 # __________________________________________________OFFERINGS
 
