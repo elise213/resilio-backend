@@ -116,8 +116,8 @@ def getCommentsByResourceId(resourceId):
 def getBResults():
     body = request.get_json()
 
-    keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
-    if not all(key in body for key in keys):
+    required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
+    if not all(key in body for key in required_keys):
         return jsonify(error="Missing required parameters in the request body"), 400
 
     neLat = float(body["neLat"])
@@ -144,136 +144,30 @@ def getBResults():
             return any(cat in categories_to_keep for cat in categories)
         return False
 
-    days = ["monday", "tuesday", "wednesday",
-            "thursday", "friday", "saturday", "sunday"]
-    days_to_keep = [day for day in days if request.args.get(day) == "true"]
+    days_to_keep = body.get("days", {})
+    days_to_keep = [day for day, value in days_to_keep.items() if value]
+    print("DAYS TO KEEP", days_to_keep)
+    print("CATS TO KEEP", categories_to_keep)
 
     filtered_resources = set()
     for r in mapList:
         category_matched = resource_category_matches(r.category)
-        schedule_matched = all(
-            getattr(r.schedule, day + "Start") is not None for day in days_to_keep
-        ) if days_to_keep else True
+        if days_to_keep:
+            if r.schedule:
+                schedule_matched = any(
+                    getattr(r.schedule, day + "Start", None) not in (None, "") for day in days_to_keep
+                )
+            else:
+                schedule_matched = False
+        else:
+            schedule_matched = True
 
         if category_matched and schedule_matched:
             filtered_resources.add(r)
 
     new_resources = [r.serialize() for r in filtered_resources]
+    # print("WOOOOO", new_resources)
     return jsonify(data=new_resources)
-
-
-# @api.route('/getBResults', methods=['POST'])
-# def getBResults():
-#     resourceList = Resource.query.all()
-#     body = request.get_json()
-
-#     neLat = float(body["neLat"])
-#     neLng = float(body["neLng"])
-#     swLat = float(body["swLat"])
-#     swLng = float(body["swLng"])
-
-#     mapList = [
-#         r for r in resourceList
-#         if r.latitude and r.longitude
-#         and float(r.latitude) <= neLat
-#         and float(r.latitude) >= swLat
-#         and float(r.longitude) <= neLng
-#         and float(r.longitude) >= swLng
-#     ]
-
-#     # print("HIII CHRISTIAN", body["resources"])
-#     categories_to_keep = [
-#         category for category, value in body["resources"].items() if value
-#     ]
-#     # print("HIII CHRISTIAN", categories_to_keep)
-
-#     def resource_category_matches(categories_to_check, categories_to_keep):
-#         if not categories_to_keep:
-#             return True
-#         if isinstance(categories_to_check, str) and ',' in categories_to_check:
-#             categories_to_check = [cat.strip()
-#                                    for cat in categories_to_check.split(',')]
-#         if isinstance(categories_to_check, str):
-#             return categories_to_check in categories_to_keep
-#         elif isinstance(categories_to_check, list):
-#             return any(cat in categories_to_keep for cat in categories_to_check)
-#         return False
-
-#     days = ["monday", "tuesday", "wednesday",
-#             "thursday", "friday", "saturday", "sunday"]
-#     days_to_keep = [day for day in days if request.args.get(day) == "true"]
-
-#     filtered_resources = set()
-
-#     for r in mapList:
-#         category_matched = resource_category_matches(
-#             r.category, categories_to_keep)
-#         schedule_matched = True if not days_to_keep else (
-#             r.schedule is not None and any(
-#                 getattr(r.schedule, day + "Start") is not None for day in days_to_keep
-#             )
-#         )
-
-#         if category_matched and schedule_matched:
-#             filtered_resources.add(r)
-
-#     new_resources = [r.serialize() for r in filtered_resources]
-#     print("NEW RESOURCES", new_resources)
-#     return jsonify(data=new_resources)
-
-
-# @api.route('/getBResults', methods=['POST'])
-# def getBResults():
-#     resourceList = Resource.query.all()
-#     bounds = request.get_json()
-#     neLat = float(bounds["neLat"])
-#     neLng = float(bounds["neLng"])
-#     swLat = float(bounds["swLat"])
-#     swLng = float(bounds["swLng"])
-
-#     mapList = [r for r in resourceList if r.latitude and r.longitude and float(r.latitude) <= neLat and float(
-#         r.latitude) >= swLat and float(r.longitude) <= neLng and float(r.longitude) >= swLng]
-
-#     categories = ["food", "health", "shelter", "hygiene", "bathroom", "work", "wifi",
-#                   "crisis", "substance", "legal", "sex", "mental", "women", "youth",
-#                   "seniors", "lgbtq"]
-#     categories_to_keep = [
-#         category for category in categories if request.args.get(category) == "true"]
-
-#     def resource_category_matches(categories_to_check, categories_to_keep):
-#         # If no categories to keep, return True (i.e., allow everything)
-#         if not categories_to_keep:
-#             return True
-#         # If the category is a string but looks like a list, convert it
-#         if isinstance(categories_to_check, str) and ',' in categories_to_check:
-#             categories_to_check = [cat.strip()
-#                                    for cat in categories_to_check.split(',')]
-#         if isinstance(categories_to_check, str):
-#             return categories_to_check in categories_to_keep
-#         elif isinstance(categories_to_check, list):
-#             return any(cat in categories_to_keep for cat in categories_to_check)
-#         return False
-
-#     days = ["monday", "tuesday", "wednesday",
-#             "thursday", "friday", "saturday", "sunday"]
-#     days_to_keep = [day for day in days if request.args.get(day) == "true"]
-
-#     filtered_resources = set()
-
-#     for r in mapList:
-#         category_matched = resource_category_matches(
-#             r.category, categories_to_keep)
-#         # If no days to keep, set schedule_matched to True (i.e., allow everything)
-#         schedule_matched = True if not days_to_keep else (r.schedule is not None and any(
-#             getattr(r.schedule, day + "Start") is not None for day in days_to_keep))
-
-#         if category_matched and schedule_matched:
-#             filtered_resources.add(r)
-
-#         # print(
-#         #     f"Resource {r.name} with Category {r.category} matched categories: {category_matched} matched schedule: {schedule_matched}")
-#     new_resources = [r.serialize() for r in filtered_resources]
-#     return jsonify(data=new_resources)
 
 
 # # get resources
