@@ -27,10 +27,8 @@ app.config['BASIC_AUTH_PASSWORD'] = os.getenv("BASIC_AUTH_PASSWORD")
 basic_auth.init_app(app)
 MIGRATE = Migrate(app, db)
 db.init_app(app)
-CORS(app)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 setup_admin(app)
-
-# Handle/serialize errors like a JSON object
 
 
 @app.errorhandler(APIException)
