@@ -45,6 +45,16 @@ class ScheduleModelView(ModelView):
         "resource_id"
     )
 
+class UserModelView(ModelView):
+    column_list = {
+        "id",
+        "name",
+        "email",
+        "is_org",
+        "avatar",
+        "picture"
+    }
+
 
 def setup_admin(app):
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample key')
@@ -54,7 +64,7 @@ def setup_admin(app):
     # Add your models here, for example this is how we add a the User model to the admin
     admin.add_view(ResourceModelView(Resource, db.session))
     admin.add_view(ScheduleModelView(Schedule, db.session))
-    # admin.add_view(ModelView(User, db.session))
+    admin.add_view(ModelView(User, db.session))
     # admin.add_view(ModelView(Comment, db.session))
     # admin.add_view(ModelView(Favorites, db.session))
     # admin.add_view(ModelView(Offering, db.session))

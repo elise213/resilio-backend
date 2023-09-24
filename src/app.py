@@ -11,8 +11,12 @@ from src.admin import setup_admin
 from src.models import db, User
 from src.routes import api
 from src.auth import basic_auth
+from flask_jwt_extended import JWTManager
 
 app = Flask(__name__)
+jwt = JWTManager(app)
+
+
 app.url_map.strict_slashes = False
 app.register_blueprint(api, url_prefix="/api")
 db_url = os.getenv("DATABASE_URL")
@@ -27,7 +31,8 @@ app.config['BASIC_AUTH_PASSWORD'] = os.getenv("BASIC_AUTH_PASSWORD")
 basic_auth.init_app(app)
 MIGRATE = Migrate(app, db)
 db.init_app(app)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+# CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
+CORS(app, resources={r"/api/*": {"origins": "http://lifeisaword.org"}})
 setup_admin(app)
 
 

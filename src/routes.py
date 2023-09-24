@@ -14,29 +14,37 @@ import datetime
 import json
 from urllib.parse import unquote
 from sqlalchemy import or_, cast, Float
+import logging
+from flask_jwt_extended import JWTManager
 
 
 api = Blueprint('api', __name__)
 
-# login / create token
 
+# login / create token
 
 @api.route("/login", methods=["POST"])
 def create_token():
+    logging.info("Inside create_token")
     email = request.json.get("email", None)
     password = request.json.get("password", None)
     name = request.json.get("name", None)
     if not email:
+        logging.info(f"User: {user}")
         return jsonify({"message": "Email is required"}), 400
     if not password:
+        logging.info(f"User: {user}")
         return jsonify({"message": "Password is required"}), 400
     user = User.query.filter_by(email=email).first()
     if not user:
+        logging.info(f"User: {user}")
         return jsonify({"message": "email is incorrect"}), 401
     if not check_password_hash(user.password, password):
+        logging.info(f"User: {user}")
         return jsonify({"message": "password is incorrect"}), 401
     favorites = getFavoritesByUserId(user.id)
     for favorite in favorites:
+        logging.info(f"User: {user}")
         resource = Resource.query.filter_by(name=favorite["name"]).first()
     favoriteOfferings = getFavoriteOfferingsByUserId(user.id)
     expiration = datetime.timedelta(days=3)
@@ -111,65 +119,15 @@ def getCommentsByResourceId(resourceId):
 
 # __________________________________________________RESOURCES
 
-# @api.route('/getBResults', methods=['POST'])
-# def getBResults():
-#     body = request.get_json()
-
-#     required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
-#     if not all(key in body for key in required_keys):
-#         return jsonify(error="Missing required parameters in the request body"), 400
-
-#     try:
-#         neLat = float(body["neLat"])
-#         neLng = float(body["neLng"])
-#         swLat = float(body["swLat"])
-#         swLng = float(body["swLng"])
-#     except ValueError:
-#         return jsonify(error="Invalid latitude or longitude values"), 400
-
-#     mapList = Resource.query.filter(
-#         cast(Resource.latitude, Float) <= neLat,
-#         cast(Resource.latitude, Float) >= swLat,
-#         cast(Resource.longitude, Float) <= neLng,
-#         cast(Resource.longitude, Float) >= swLng
-#     ).all()
-
-#     print("mapList", mapList)
-
-#     categories_to_keep = [category for category, value in body["resources"].items() if value]
-
-#     def resource_category_matches(categories_to_check):
-#         if not categories_to_keep:
-#             return True
-#         if isinstance(categories_to_check, str):
-#             categories = [cat.strip() for cat in categories_to_check.split(',')]
-#             return any(cat in categories_to_keep for cat in categories)
-#         return False
-
-#     days_to_keep = {day.lower(): value for day, value in body.get("days", {}).items()}
-#     days_to_keep = [day for day, value in days_to_keep.items() if value]
-
-#     filtered_resources = set()
-
-#     for r in mapList:
-#         category_matched = resource_category_matches(r.category) 
-#         schedule_matched = any(
-#             getattr(r.schedule, day + "Start", None) not in (None, "") for day in days_to_keep
-#         ) if days_to_keep and r.schedule else True
-
-#         if category_matched and schedule_matched:
-#             filtered_resources.add(r)
-
-#     new_resources = [r.serialize() for r in filtered_resources]
-
-#     print("new resoruces",new_resources)
-
-#     return jsonify(data=new_resources)
-
-
 
 @api.route('/getBResults', methods=['POST'])
 def getBResults():
+    all_resources = Resource.query.all()
+    # print("All Resources:", all_resources)
+    one_resource = Resource.query.first()
+    if one_resource:
+        print(type(one_resource.latitude), type(one_resource.longitude))
+
     body = request.get_json()
     required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
     if not all(key in body for key in required_keys):
@@ -179,6 +137,7 @@ def getBResults():
     neLng = float(body["neLng"])
     swLat = float(body["swLat"])
     swLng = float(body["swLng"])
+    print(f"NE: ({neLat}, {neLng}), SW: ({swLat}, {swLng})")
 
     mapList = Resource.query.filter(
         cast(Resource.latitude, Float) <= neLat,
@@ -186,7 +145,9 @@ def getBResults():
         cast(Resource.longitude, Float) <= neLng,
         cast(Resource.longitude, Float) >= swLng
     ).all()
-    
+
+    print("Query Results:", mapList)
+
     categories_to_keep = [category for category,
                           value in body["resources"].items() if value]
 
@@ -203,6 +164,7 @@ def getBResults():
     days_to_keep = [day for day, value in days_to_keep.items() if value]
 
     filtered_resources = set()
+    print("Filtered Resources:", filtered_resources)
 
     for r in mapList:
         category_matched = resource_category_matches(r.category)
@@ -219,65 +181,8 @@ def getBResults():
         if category_matched and schedule_matched:
             filtered_resources.add(r)
 
-    # print(filtered_resources)
-
     new_resources = [r.serialize() for r in filtered_resources]
     return jsonify(data=new_resources)
-
-
-# # get resources
-# @api.route('/getResources', methods=['GET'])
-# def getResources():
-#     resourceList = Resource.query.all()
-
-#     categories_to_keep = []
-#     if "food" in request.args and request.args["food"] == "true":
-#         categories_to_keep.append("food")
-#     if "health" in request.args and request.args["health"] == "true":
-#         categories_to_keep.append("health")
-#     if "shelter" in request.args and request.args["shelter"] == "true":
-#         categories_to_keep.append("shelter")
-#     if "hygiene" in request.args and request.args["hygiene"] == "true":
-#         categories_to_keep.append("hygiene")
-
-#     days_to_keep = []
-#     if "monday" in request.args and request.args["monday"] == "true":
-#         days_to_keep.append("monday")
-#     if "tuesday" in request.args and request.args["tuesday"] == "true":
-#         days_to_keep.append("tuesday")
-#     if "wednesday" in request.args and request.args["wednesday"] == "true":
-#         days_to_keep.append("wednesday")
-#     if "thursday" in request.args and request.args["thursday"] == "true":
-#         days_to_keep.append("thursday")
-#     if "friday" in request.args and request.args["friday"] == "true":
-#         days_to_keep.append("friday")
-#     if "saturday" in request.args and request.args["saturday"] == "true":
-#         days_to_keep.append("saturday")
-#     if "sunday" in request.args and request.args["sunday"] == "true":
-#         days_to_keep.append("sunday")
-
-#     if len(categories_to_keep) > 0 and len(days_to_keep) > 0:
-#         filtered_resources = set()  # use a set
-#         for r in resourceList:
-#             if r.category in categories_to_keep and r.schedule is not None:
-#                 for day in days_to_keep:
-#                     if getattr(r.schedule, day + "Start") is not None:
-#                         filtered_resources.add(r)
-#         resourceList = list(filtered_resources)  # convert back to list
-
-#     elif len(categories_to_keep) > 0:
-#         resourceList = [
-#             r for r in resourceList if r.category in categories_to_keep]
-#     elif len(days_to_keep) > 0:
-#         filtered_resources = set()  # use a set
-#         for r in resourceList:
-#             if r.schedule is not None:
-#                 for day in days_to_keep:
-#                     if getattr(r.schedule, day + "Start") is not None:
-#                         filtered_resources.add(r)
-#         resourceList = list(filtered_resources)  # convert back to list
-#     new_resources = [r.serialize() for r in resourceList]
-#     return jsonify(data=new_resources)
 
 
 # create resource
@@ -329,23 +234,26 @@ def create_resource():
     return jsonify({"created": "Thank you for creating a resource!", "status": "true"}), 200
 
 # EDIT RESOURCE
+
+
 @api.route("/editResource/<int:resource_id>", methods=["PUT"])
 # @jwt_required()
 def edit_resource(resource_id):
     print("RESOURCE ID", resource_id)
     request_body = request.get_json()
     resource = Resource.query.get(resource_id)
-    
+
     if resource:
         print("FROM EDIT, RESOURCE", resource.name)
         print(request_body.get("name", resource.name))
-        
+
         resource.name = request_body.get("name", resource.name)
         resource.address = request_body.get("address", resource.address)
         resource.phone = request_body.get("phone", resource.phone)
         resource.category = request_body.get("category", resource.category)
         resource.website = request_body.get("website", resource.website)
-        resource.description = request_body.get("description", resource.description)
+        resource.description = request_body.get(
+            "description", resource.description)
         if request_body.get("latitude") is not None:
             resource.latitude = request_body.get("latitude")
         if request_body.get("longitude") is not None:
@@ -354,62 +262,90 @@ def edit_resource(resource_id):
         # resource.longitude = request_body.get("longitude", resource.longitude)
         resource.image = request_body.get("image", resource.image)
         resource.image2 = request_body.get("image2", resource.image2)
-        
-        db.session.commit() 
-        
+
+        db.session.commit()
+
         days = request_body.get("days", {})
         schedule = Schedule.query.filter_by(resource_id=resource.id).first()
         print("DAYSSSSS", days)
         if schedule:
-            schedule.mondayStart = days.get("monday", {}).get("start", schedule.mondayStart)
-            schedule.mondayEnd = days.get("monday", {}).get("end", schedule.mondayEnd)
-            
-            schedule.tuesdayStart = days.get("tuesday", {}).get("start", schedule.tuesdayStart)
-            schedule.tuesdayEnd = days.get("tuesday", {}).get("end", schedule.tuesdayEnd)
-            
-            schedule.wednesdayStart = days.get("wednesday", {}).get("start", schedule.wednesdayStart)
-            schedule.wednesdayEnd = days.get("wednesday", {}).get("end", schedule.wednesdayEnd)
-            
-            schedule.thursdayStart = days.get("thursday", {}).get("start", schedule.thursdayStart)
-            schedule.thursdayEnd = days.get("thursday", {}).get("end", schedule.thursdayEnd)
-            
-            schedule.fridayStart = days.get("friday", {}).get("start", schedule.fridayStart)
-            schedule.fridayEnd = days.get("friday", {}).get("end", schedule.fridayEnd)
-            
-            schedule.saturdayStart = days.get("saturday", {}).get("start", schedule.saturdayStart)
-            schedule.saturdayEnd = days.get("saturday", {}).get("end", schedule.saturdayEnd)
-            
-            schedule.sundayStart = days.get("sunday", {}).get("start", schedule.sundayStart)
-            schedule.sundayEnd = days.get("sunday", {}).get("end", schedule.sundayEnd)
-            
+            schedule.mondayStart = days.get("monday", {}).get(
+                "start", schedule.mondayStart)
+            schedule.mondayEnd = days.get(
+                "monday", {}).get("end", schedule.mondayEnd)
+
+            schedule.tuesdayStart = days.get("tuesday", {}).get(
+                "start", schedule.tuesdayStart)
+            schedule.tuesdayEnd = days.get(
+                "tuesday", {}).get("end", schedule.tuesdayEnd)
+
+            schedule.wednesdayStart = days.get("wednesday", {}).get(
+                "start", schedule.wednesdayStart)
+            schedule.wednesdayEnd = days.get(
+                "wednesday", {}).get("end", schedule.wednesdayEnd)
+
+            schedule.thursdayStart = days.get("thursday", {}).get(
+                "start", schedule.thursdayStart)
+            schedule.thursdayEnd = days.get(
+                "thursday", {}).get("end", schedule.thursdayEnd)
+
+            schedule.fridayStart = days.get("friday", {}).get(
+                "start", schedule.fridayStart)
+            schedule.fridayEnd = days.get(
+                "friday", {}).get("end", schedule.fridayEnd)
+
+            schedule.saturdayStart = days.get("saturday", {}).get(
+                "start", schedule.saturdayStart)
+            schedule.saturdayEnd = days.get(
+                "saturday", {}).get("end", schedule.saturdayEnd)
+
+            schedule.sundayStart = days.get("sunday", {}).get(
+                "start", schedule.sundayStart)
+            schedule.sundayEnd = days.get(
+                "sunday", {}).get("end", schedule.sundayEnd)
+
             db.session.commit()  # Commit changes to Schedule
-            
+
             return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
         else:
             newSchedule = Schedule()
 
-            newSchedule.mondayStart = days.get("monday", {}).get("start", newSchedule.mondayStart)
-            newSchedule.mondayEnd = days.get("monday", {}).get("end", newSchedule.mondayEnd)
-            
-            newSchedule.tuesdayStart = days.get("tuesday", {}).get("start", newSchedule.tuesdayStart)
-            newSchedule.tuesdayEnd = days.get("tuesday", {}).get("end", newSchedule.tuesdayEnd)
-            
-            newSchedule.wednesdayStart = days.get("wednesday", {}).get("start", newSchedule.wednesdayStart)
-            newSchedule.wednesdayEnd = days.get("wednesday", {}).get("end", newSchedule.wednesdayEnd)
-            
-            newSchedule.thursdayStart = days.get("thursday", {}).get("start", newSchedule.thursdayStart)
-            newSchedule.thursdayEnd = days.get("thursday", {}).get("end", newSchedule.thursdayEnd)
-            
-            newSchedule.fridayStart = days.get("friday", {}).get("start", newSchedule.fridayStart)
-            newSchedule.fridayEnd = days.get("friday", {}).get("end", newSchedule.fridayEnd)
-            
-            newSchedule.saturdayStart = days.get("saturday", {}).get("start", newSchedule.saturdayStart)
-            newSchedule.saturdayEnd = days.get("saturday", {}).get("end", newSchedule.saturdayEnd)
-            
-            newSchedule.sundayStart = days.get("sunday", {}).get("start", newSchedule.sundayStart)
-            newSchedule.sundayEnd = days.get("sunday", {}).get("end", newSchedule.sundayEnd)
+            newSchedule.mondayStart = days.get("monday", {}).get(
+                "start", newSchedule.mondayStart)
+            newSchedule.mondayEnd = days.get(
+                "monday", {}).get("end", newSchedule.mondayEnd)
 
-            newSchedule.resource_id=resource.id
+            newSchedule.tuesdayStart = days.get("tuesday", {}).get(
+                "start", newSchedule.tuesdayStart)
+            newSchedule.tuesdayEnd = days.get(
+                "tuesday", {}).get("end", newSchedule.tuesdayEnd)
+
+            newSchedule.wednesdayStart = days.get("wednesday", {}).get(
+                "start", newSchedule.wednesdayStart)
+            newSchedule.wednesdayEnd = days.get(
+                "wednesday", {}).get("end", newSchedule.wednesdayEnd)
+
+            newSchedule.thursdayStart = days.get("thursday", {}).get(
+                "start", newSchedule.thursdayStart)
+            newSchedule.thursdayEnd = days.get(
+                "thursday", {}).get("end", newSchedule.thursdayEnd)
+
+            newSchedule.fridayStart = days.get("friday", {}).get(
+                "start", newSchedule.fridayStart)
+            newSchedule.fridayEnd = days.get(
+                "friday", {}).get("end", newSchedule.fridayEnd)
+
+            newSchedule.saturdayStart = days.get("saturday", {}).get(
+                "start", newSchedule.saturdayStart)
+            newSchedule.saturdayEnd = days.get(
+                "saturday", {}).get("end", newSchedule.saturdayEnd)
+
+            newSchedule.sundayStart = days.get("sunday", {}).get(
+                "start", newSchedule.sundayStart)
+            newSchedule.sundayEnd = days.get(
+                "sunday", {}).get("end", newSchedule.sundayEnd)
+
+            newSchedule.resource_id = resource.id
             db.session.add(newSchedule)
             db.session.commit()
             return jsonify({"message": "Resource edited but Schedule not found", "status": "true"}), 200
@@ -417,74 +353,9 @@ def edit_resource(resource_id):
     else:
         return jsonify({"message": "Resource not found"}), 404
 
-
-# # EDIT RESOURCE
-# @api.route("/editResource/<int:resource_id>", methods=["PUT"])
-# # @jwt_required()
-# def edit_resource(resource_id):
-#     print("RESOURCE ID", resource_id)
-#     request_body = request.get_json()
-#     resource = Resource.query.get(resource_id)
-#     print("FROM EDIT, RESOURCE", resource.name)
-#     print(request_body.get("name", resource.name))
-#     if resource:
-#         resource.name = request_body.get("name", resource.name)
-#         resource.address = request_body.get("address", resource.address)
-#         resource.phone = request_body.get("phone", resource.phone)
-#         resource.category = request_body.get("category", resource.category)
-#         resource.website = request_body.get("website", resource.website)
-#         resource.description = request_body.get(
-#             "description", resource.description)
-#         resource.latitude = request_body.get("latitude", resource.latitude)
-#         resource.longitude = request_body.get("longitude", resource.longitude)
-#         resource.image = request_body.get("image", resource.image)
-#         resource.image2 = request_body.get("image2", resource.image2)
-#         db.session.commit() 
-        
-#         days = request_body.get("days", {})
-#         schedule = Schedule.query.filter_by(resource_id=resource.id).first()
-#     if schedule:
-#         schedule.mondayStart = days.get("monday", {}).get(
-#             "start", schedule.mondayStart)
-#         schedule.mondayEnd = days.get(
-#             "monday", {}).get("end", schedule.mondayEnd)
-
-#         schedule.tuesdayStart = days.get("tuesday", {}).get(
-#             "start", schedule.tuesdayStart)
-#         schedule.tuesdayEnd = days.get(
-#             "tuesday", {}).get("end", schedule.tuesdayEnd)
-
-#         schedule.wednesdayStart = days.get("wednesday", {}).get(
-#             "start", schedule.wednesdayStart)
-#         schedule.wednesdayEnd = days.get(
-#             "wednesday", {}).get("end", schedule.wednesdayEnd)
-
-#         schedule.thursdayStart = days.get("thursday", {}).get(
-#             "start", schedule.thursdayStart)
-#         schedule.thursdayEnd = days.get(
-#             "thursday", {}).get("end", schedule.thursdayEnd)
-
-#         schedule.fridayStart = days.get("friday", {}).get(
-#             "start", schedule.fridayStart)
-#         schedule.fridayEnd = days.get(
-#             "friday", {}).get("end", schedule.fridayEnd)
-
-#         schedule.saturdayStart = days.get("saturday", {}).get(
-#             "start", schedule.saturdayStart)
-#         schedule.saturdayEnd = days.get(
-#             "saturday", {}).get("end", schedule.saturdayEnd)
-
-#         schedule.sundayStart = days.get("sunday", {}).get(
-#             "start", schedule.sundayStart)
-#         schedule.sundayEnd = days.get(
-#             "sunday", {}).get("end", schedule.sundayEnd)
-
-#         db.session.commit()
-#         return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
-#     else:
-#         return jsonify({"message": "Resource not found"}), 404
-
 # GET RESOURCE
+
+
 @api.route("/getResource/<int:resource_id>", methods=["GET"])
 def get_resource(resource_id):
     resource = Resource.query.get(resource_id)
@@ -516,7 +387,6 @@ def get_resource(resource_id):
         return jsonify(response_data), 200
     else:
         return jsonify({"message": "Resource not found"}), 404
-
 
 
 # add favorite resource
@@ -705,3 +575,40 @@ def create_drop():
     db.session.add(drop)
     db.session.commit()
     return jsonify({"created": "Thank you for creating a drop!", "status": "true"}), 200
+
+
+# WARNING!!!! THIS ENDPOINT FINDS ALL OF THE RESOURCES WITH INVALID LAT/LNG VALUES AND PUTS THEM IN BODHIGAYA
+
+
+# DEFAULT_LAT = "24.681678475660995"  # Make sure to store these as strings since you need them as such
+# DEFAULT_LNG = "84.99154781534179"
+
+# @api.route("/checkInvalidCoordinates", methods=["GET"])
+# def check_invalid_coordinates():
+#     # Fetch all records with either empty or NULL latitude or longitude
+#     invalid_resources = Resource.query.filter(
+#         or_(
+#             Resource.latitude == "",
+#             Resource.latitude == None,
+#             Resource.longitude == "",
+#             Resource.longitude == None
+#         )
+#     ).order_by(Resource.id).all()  # Sort by ID
+
+#     # Update and print these records
+#     for resource in invalid_resources:
+#         print(f"ID: {resource.id}, Name: {resource.name}, Latitude: {resource.latitude}, Longitude: {resource.longitude}")
+
+#         # Update latitude and longitude with default values
+#         if resource.latitude in [None, ""]:
+#             resource.latitude = DEFAULT_LAT
+#         if resource.longitude in [None, ""]:
+#             resource.longitude = DEFAULT_LNG
+
+#         # Commit changes to database
+#         db.session.commit()
+
+#     # Serializing invalid_resources to return as JSON (if you wish)
+#     invalid_resources_serialized = [r.serialize() for r in invalid_resources]
+
+#     return jsonify({"invalid_resources": invalid_resources_serialized}), 200
