@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import ARRAY
+
 import json
 
 db = SQLAlchemy()
@@ -41,8 +42,8 @@ class Resource(db.Model):
     category = db.Column(db.String(256), unique=False, nullable=True)
     website = db.Column(db.String(256), unique=False, nullable=True)
     description = db.Column(db.String(900), unique=False, nullable=True)
-    latitude = db.Column(db.String, unique=False, nullable=True)
-    longitude = db.Column(db.String, unique=False, nullable=True)
+    latitude = db.Column(db.Float, unique=False, nullable=True)
+    longitude = db.Column(db.Float, unique=False, nullable=True)
     image = db.Column(db.String(500), unique=False, nullable=True)
     image2 = db.Column(db.String(500), unique=False, nullable=True)
     logo = db.Column(db.String(500), unique=False, nullable=True)

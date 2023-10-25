@@ -1,6 +1,8 @@
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
+from flask import Flask, jsonify, request
+from flask import app, jsonify, request, Response
 from flask import jsonify, request
 from flask import Flask, request, jsonify, url_for, Blueprint
 from flask_cors import cross_origin
@@ -13,15 +15,21 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 import json
 from urllib.parse import unquote
-from sqlalchemy import or_, cast, Float
+from sqlalchemy import or_, cast, Float, and_, not_
 import logging
 from flask_jwt_extended import JWTManager
+import boto3
+import botocore
+import os
 
 
 api = Blueprint('api', __name__)
 
+s3 = boto3.client("s3", aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"), aws_secret_access_key=os.environ.get(
+    "AWS_SECRET_ACCESS_KEY"), region_name="us-east-2")
 
 # login / create token
+
 
 @api.route("/login", methods=["POST"])
 def create_token():
@@ -119,16 +127,15 @@ def getCommentsByResourceId(resourceId):
 
 # __________________________________________________RESOURCES
 
+# GETBRESULTS
+
 
 @api.route('/getBResults', methods=['POST'])
 def getBResults():
-    all_resources = Resource.query.all()
-    # print("All Resources:", all_resources)
-    one_resource = Resource.query.first()
-    if one_resource:
-        print(type(one_resource.latitude), type(one_resource.longitude))
 
     body = request.get_json()
+    print(body["days"])
+
     required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
     if not all(key in body for key in required_keys):
         return jsonify(error="Missing required parameters in the request body"), 400
@@ -137,16 +144,20 @@ def getBResults():
     neLng = float(body["neLng"])
     swLat = float(body["swLat"])
     swLng = float(body["swLng"])
-    print(f"NE: ({neLat}, {neLng}), SW: ({swLat}, {swLng})")
+    # print(f"NE: ({neLat}, {neLng}), SW: ({swLat}, {swLng})")
 
     mapList = Resource.query.filter(
-        cast(Resource.latitude, Float) <= neLat,
-        cast(Resource.latitude, Float) >= swLat,
-        cast(Resource.longitude, Float) <= neLng,
-        cast(Resource.longitude, Float) >= swLng
+        and_(
+            not_(Resource.latitude == None),
+            not_(Resource.longitude == None),
+            cast(Resource.latitude, Float) <= neLat,
+            cast(Resource.latitude, Float) >= swLat,
+            cast(Resource.longitude, Float) <= neLng,
+            cast(Resource.longitude, Float) >= swLng
+        )
     ).all()
 
-    print("Query Results:", mapList)
+    # print("Query Results:", mapList)
 
     categories_to_keep = [category for category,
                           value in body["resources"].items() if value]
@@ -164,7 +175,7 @@ def getBResults():
     days_to_keep = [day for day, value in days_to_keep.items() if value]
 
     filtered_resources = set()
-    print("Filtered Resources:", filtered_resources)
+    # print("Filtered Resources:", filtered_resources)
 
     for r in mapList:
         category_matched = resource_category_matches(r.category)
@@ -192,10 +203,10 @@ def create_resource():
     # user_id = get_jwt_identity()
     request_body = request.get_json()
     if not request_body["name"]:
-        return jsonify({"message": "Name is required"}), 400
+        return jsonify({"status": "error", "message": "Name is required"}), 400
     resource = Resource.query.filter_by(name=request_body["name"]).first()
     if resource:
-        return jsonify({"message": "Resource already exists"}), 400
+        return jsonify({"status": "error", "message": "Resource already exists"}), 400
     resource = Resource(
         name=request_body["name"],
         address=request_body["address"],
@@ -203,8 +214,8 @@ def create_resource():
         category=request_body["category"],
         website=request_body["website"],
         description=request_body["description"],
-        latitude=request_body["latitude"],
-        longitude=request_body["longitude"],
+        latitude=float(request_body["latitude"]),  # Added float conversion
+        longitude=float(request_body["longitude"]),
         image=request_body["image"],
         image2=request_body["image2"],
         # user_id=user_id,
@@ -231,7 +242,8 @@ def create_resource():
     )
     db.session.add(schedule)
     db.session.commit()
-    return jsonify({"created": "Thank you for creating a resource!", "status": "true"}), 200
+    return jsonify({"status": "success"}), 200
+
 
 # EDIT RESOURCE
 
@@ -255,9 +267,13 @@ def edit_resource(resource_id):
         resource.description = request_body.get(
             "description", resource.description)
         if request_body.get("latitude") is not None:
-            resource.latitude = request_body.get("latitude")
+            resource.latitude = float(request_body.get("latitude"))
         if request_body.get("longitude") is not None:
-            resource.longitude = request_body.get("longitude")
+            resource.longitude = float(request_body.get("longitude"))
+        # if request_body.get("latitude") is not None:
+        #     resource.latitude = request_body.get("latitude")
+        # if request_body.get("longitude") is not None:
+        #     resource.longitude = request_body.get("longitude")
         # resource.latitude = request_body.get("latitude", resource.latitude)
         # resource.longitude = request_body.get("longitude", resource.longitude)
         resource.image = request_body.get("image", resource.image)
@@ -267,7 +283,7 @@ def edit_resource(resource_id):
 
         days = request_body.get("days", {})
         schedule = Schedule.query.filter_by(resource_id=resource.id).first()
-        print("DAYSSSSS", days)
+        # print("DAYSSSSS", days)
         if schedule:
             schedule.mondayStart = days.get("monday", {}).get(
                 "start", schedule.mondayStart)
@@ -388,6 +404,55 @@ def get_resource(resource_id):
     else:
         return jsonify({"message": "Resource not found"}), 404
 
+# get all resources
+
+
+@api.route("/getAllResources", methods=["GET"])
+def get_all_resources():
+    logging.info("Getting all resources")
+    resources = Resource.query.all()
+    logging.info(f"Found {len(resources)} resources")
+    resources = Resource.query.all()
+
+    if not resources:
+        print("No resources found")  # Debugging print statement
+        return jsonify({"message": "No resources found"}), 404
+
+    resources_list = []
+    for resource in resources:
+        print(f"Processing resource: {resource.id}")
+    for resource in resources:
+        schedule = Schedule.query.filter_by(resource_id=resource.id).first()
+        if schedule:
+            days = {
+                "monday": {"start": schedule.mondayStart, "end": schedule.mondayEnd},
+                "tuesday": {"start": schedule.tuesdayStart, "end": schedule.tuesdayEnd},
+                "wednesday": {"start": schedule.wednesdayStart, "end": schedule.wednesdayEnd},
+                "thursday": {"start": schedule.thursdayStart, "end": schedule.thursdayEnd},
+                "friday": {"start": schedule.fridayStart, "end": schedule.fridayEnd},
+                "saturday": {"start": schedule.saturdayStart, "end": schedule.saturdayEnd},
+                "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd}
+            }
+        else:
+            days = {}
+
+        resource_data = {
+            "id": resource.id,
+            "name": resource.name,
+            "address": resource.address,
+            "description": resource.description,
+            "category": resource.category,
+            "image": resource.image,
+            "image2": resource.image2,
+            "days": days,
+            "latitude": resource.latitude,
+            "longitude": resource.longitude
+        }
+        resources_list.append(resource_data)
+
+    # Debugging print statement
+    print(f"Returning JSON response with {len(resources_list)} resources")
+    return jsonify(resources=resources_list), 200
 
 # add favorite resource
 
@@ -515,8 +580,8 @@ def addFavoriteOffering():
         userId=userId,
         title=request_body["title"],
     )
-    print(request_body["title"])
-    print("Request body:", request_body)
+    # print(request_body["title"])
+    # print("Request body:", request_body)
     db.session.add(favoriteOffering)
     db.session.commit()
     return jsonify(message="okay", offering=favoriteOffering.serialize())
@@ -575,6 +640,42 @@ def create_drop():
     db.session.add(drop)
     db.session.commit()
     return jsonify({"created": "Thank you for creating a drop!", "status": "true"}), 200
+
+# STRING TO FLOAT
+
+
+# @app.route('/convertLatLon', methods=['POST'])
+# def convert_lat_lon():
+#     default_latitude = 24.681678475660995
+#     default_longitude = 84.99154781534179
+
+#     try:
+#         resources = Resource.query.all()
+
+#         for resource in resources:
+#             try:
+#                 resource.latitude = float(
+#                     resource.latitude) if resource.latitude else default_latitude
+#                 resource.longitude = float(
+#                     resource.longitude) if resource.longitude else default_longitude
+
+#             except ValueError:
+#                 logging.error(
+#                     f"Failed to convert lat/lon for resource ID {resource.id}")
+#                 resource.latitude = default_latitude
+#                 resource.longitude = default_longitude
+
+#         db.session.commit()
+
+#         return jsonify({"message": "Conversion completed"}), 200
+
+#     except Exception as e:
+#         logging.error(f"An error occurred: {e}")
+#         return jsonify({"message": "An error occurred during the conversion"}), 500
+
+
+# if __name__ == '__main__':
+#     app.run(debug=True)
 
 
 # WARNING!!!! THIS ENDPOINT FINDS ALL OF THE RESOURCES WITH INVALID LAT/LNG VALUES AND PUTS THEM IN BODHIGAYA

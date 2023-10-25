@@ -45,6 +45,7 @@ class ScheduleModelView(ModelView):
         "resource_id"
     )
 
+
 class UserModelView(ModelView):
     column_list = {
         "id",
@@ -56,6 +57,17 @@ class UserModelView(ModelView):
     }
 
 
+class FavoriteModelView(ModelView):
+    column_list = {
+        "id",
+        "name",
+        "userId",
+        "image",
+        "category",
+        "resource_id"
+    }
+
+
 def setup_admin(app):
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample key')
     app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
@@ -64,9 +76,9 @@ def setup_admin(app):
     # Add your models here, for example this is how we add a the User model to the admin
     admin.add_view(ResourceModelView(Resource, db.session))
     admin.add_view(ScheduleModelView(Schedule, db.session))
-    admin.add_view(ModelView(User, db.session))
+    admin.add_view(UserModelView(User, db.session))
     # admin.add_view(ModelView(Comment, db.session))
-    # admin.add_view(ModelView(Favorites, db.session))
+    admin.add_view(FavoriteModelView(Favorites, db.session))
     # admin.add_view(ModelView(Offering, db.session))
     # admin.add_view(ModelView(Drop, db.session))
     # admin.add_view(ModelView(FavoriteOfferings, db.session))

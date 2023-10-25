@@ -21,6 +21,7 @@ flask-jwt-extended = "*"
 psycopg2-binary = "*"
 gevent = "*"
 flask-basicauth = "*"
+boto3 = "*"
 
 [requires]
 python_version = "3.10"
