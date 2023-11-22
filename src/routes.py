@@ -499,16 +499,101 @@ def getFavorites():
     return jsonify(favorites=favorites)
 
 
-def getFavoritesByUserId(userId):
-    favorites = Favorites.query.filter_by(userId=userId).all()
-    serialized_favorites = [fav.serialize() for fav in favorites]
+def getFavoritesByUserId(user_id):
+    favorites = (db.session.query(Favorites, Resource)
+                 .join(Resource, Resource.name == Favorites.name)
+                 .filter(Favorites.userId == user_id)
+                 .all())
+    return [{"id": fav.id, "name": fav.name, "userId": fav.userId, "resource": res.serialize()} for fav, res in favorites]
+
+
+# def getFavoritesByUserId(userId):
+#     favorites = Favorites.query.filter_by(userId=userId).all()
+
+#     # Now, we'll collect resource names to reduce the number of queries.
+#     resource_names = [fav.name for fav in favorites]
+#     # Fetch all resources in one query where the name matches any favorite name.
+#     resources = Resource.query.filter(Resource.name.in_(resource_names)).all()
+
+#     # Create a dictionary to easily map resource names to their data.
+#     resources_mapping = {res.name: res for res in resources}
+
+#     serialized_favorites = []
+#     for fav in favorites:
+#         # Fetch the corresponding resource based on the favorite's name.
+#         resource = resources_mapping.get(fav.name)
+#         if resource:
+#             favorite_data = {
+#                 "id": fav.id,
+#                 "name": fav.name,
+#                 "userId": fav.userId,
+#                 "resource": {
+#                     "id": resource.id,
+#                     "name": resource.name,
+#                     "image": resource.image,
+#                     "category": resource.category,
+#                     "latitude": resource.latitude,
+#                     "longitude": resource.longitude,
+#                     # Assuming you have a function to fetch the schedule as shown previously.
+#                     "days": getScheduleForResource(resource.id)
+#                 }
+#             }
+#         else:
+#             # In case the resource was not found for some reason, provide minimal data.
+#             favorite_data = fav.serialize()
+
+#         serialized_favorites.append(favorite_data)
+
+#     return serialized_favorites
+
+
+def getScheduleForResource(resource_id):
+    schedule = Schedule.query.filter_by(resource_id=resource_id).first()
+    if schedule:
+        return {
+            "monday": {"start": schedule.mondayStart, "end": schedule.mondayEnd},
+            # ... repeat for other days
+            "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd}
+        }
+    else:
+        return {}  # Return an empty dict if no schedule is found
+
+    # Join Favorites with Resource using 'resource_id' as the foreign key in Favorites.
+    favorites = db.session.query(
+        Favorites, Resource
+    ).join(
+        Resource, Favorites.resource_id == Resource.id
+    ).filter(
+        Favorites.userId == userId
+    ).all()
+
+    serialized_favorites = []
+    for favorite, resource in favorites:
+        # Assuming that 'favorite' is an instance of the Favorites model,
+        # and it has a method 'serialize' to turn it into a dictionary.
+        favorite_data = favorite.serialize()
+
+        # Add additional resource details to favorite_data
+        favorite_data.update({
+            'resource': {
+                "id": resource.id,
+                "name": resource.name,
+                "address": resource.address,
+                "description": resource.description,
+                "category": resource.category,
+                "image": resource.image,
+                "image2": resource.image2,
+                "latitude": resource.latitude,
+                "longitude": resource.longitude,
+                # If there are schedules associated with the resource, fetch them
+                # Note: You'll need to adjust this if schedules are not always present
+                "days": getScheduleForResource(resource.id)
+            }
+        })
+
+        serialized_favorites.append(favorite_data)
+
     return serialized_favorites
-
-
-def getCommentsByResourceId(resourceId):
-    comments = Comment.query.filter_by(resource_id=resourceId).all()
-    serialized_comments = [comment.serialize() for comment in comments]
-    return serialized_comments
 
 
 # get schedules
