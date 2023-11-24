@@ -1,12 +1,14 @@
 """
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
+
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask import Flask, jsonify, request
 from flask import app, jsonify, request, Response
 from flask import jsonify, request
 from flask import Flask, request, jsonify, url_for, Blueprint
 from flask_cors import cross_origin
-from src.models import db, User, Resource, Rating, Favorites, Comment, Drop, Schedule, Offering, FavoriteOfferings
+from src.models import db, User, Resource, Rating, Comment, Favorites, Comment, Drop, Schedule, Offering, FavoriteOfferings
 from src.utils import generate_sitemap, APIException
 from flask_jwt_extended import create_access_token
 from flask_jwt_extended import get_jwt_identity
@@ -94,7 +96,7 @@ def create_user():
 
 
 # __________________________________________________COMMENTS
-# Create comments
+# Create comment
 @api.route('/createComment', methods=['POST'])
 @jwt_required()
 def create_comment():
@@ -128,24 +130,43 @@ def getCommentsByResourceId(resourceId):
 
 # __________________________________________________RATINGS
 # Create rating
+
+
 @api.route('/rating', methods=['POST'])
 @jwt_required()
 def create_rating():
     user_id = get_jwt_identity()
     request_body = request.get_json()
-    rating_value = request_body["rating_value"]
+
+    # Convert rating_value to an integer
+    try:
+        rating_value = int(request_body.get("rating_value"))
+    except (TypeError, ValueError):
+        return jsonify({"message": "Invalid rating value"}), 400
+
+    resource_id = request_body.get("resource_id")
+
     if not rating_value:
         return jsonify({"message": "Please include a Rating"}), 400
-    if rating_value < 1 and rating_value > 5:
+    if not (1 <= rating_value <= 5):
         return jsonify({"message": "value outside range"}), 400
-    rating = Rating(
-        user_id=user_id,
-        resource_id=request_body["resource_id"],
-        rating_value=request_body["rating_value"],
-    )
-    db.session.add(rating)
+
+    # Check if a rating already exists for this user and resource
+    existing_rating = Rating.query.filter_by(
+        user_id=user_id, resource_id=resource_id).first()
+
+    if existing_rating:
+        # Update the existing rating
+        existing_rating.rating_value = rating_value
+    else:
+        # Create a new rating
+        new_rating = Rating(
+            user_id=user_id, resource_id=resource_id, rating_value=rating_value)
+        db.session.add(new_rating)
+
     db.session.commit()
     return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
+
 
 # Get rating
 

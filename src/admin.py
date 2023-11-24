@@ -1,7 +1,7 @@
 
 import os
 from flask_admin import Admin
-from src.models import db, User, Resource, Comment, Favorites, Offering, Schedule, Drop, FavoriteOfferings
+from src.models import db, User, Resource, Comment, Rating, Favorites, Offering, Schedule, Drop, FavoriteOfferings
 from flask_admin.contrib.sqla import ModelView
 
 
@@ -68,6 +68,25 @@ class FavoriteModelView(ModelView):
     }
 
 
+class RatingModelView(ModelView):
+    column_list = {
+        "rating_value",
+        "rating_id",
+        "user_id",
+        "resource_id",
+    }
+
+
+class CommentModelView(ModelView):
+    column_list = {
+        "comment_id",
+        "user_id",
+        "resource_id",
+        "comment_cont",
+        "created_at",
+    }
+
+
 def setup_admin(app):
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample key')
     app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
@@ -77,7 +96,8 @@ def setup_admin(app):
     admin.add_view(ResourceModelView(Resource, db.session))
     admin.add_view(ScheduleModelView(Schedule, db.session))
     admin.add_view(UserModelView(User, db.session))
-    # admin.add_view(ModelView(Comment, db.session))
+    admin.add_view(RatingModelView(Rating, db.session))
+    admin.add_view(CommentModelView(Comment, db.session))
     admin.add_view(FavoriteModelView(Favorites, db.session))
     # admin.add_view(ModelView(Offering, db.session))
     # admin.add_view(ModelView(Drop, db.session))
