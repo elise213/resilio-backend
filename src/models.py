@@ -17,6 +17,7 @@ class User(db.Model):
     is_org = db.Column(db.String(80), nullable=False)
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
+    rating = db.relationship("Rating", backref="User", lazy=True)
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -49,6 +50,7 @@ class Resource(db.Model):
     logo = db.Column(db.String(500), unique=False, nullable=True)
     user_id = db.Column(db.Integer, unique=False, nullable=True)
     comment = db.relationship("Comment", backref="Resource", lazy=True)
+    rating = db.relationship("Rating", backref="Resource", lazy=True)
     schedule = db.relationship(
         "Schedule", backref="Resource", lazy=True, uselist=False)
 
@@ -124,22 +126,39 @@ class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, ForeignKey("User.id"))
     resource_id = db.Column(db.Integer, ForeignKey("Resource.id"))
-    comment_cont = db.Column(db.String(250), nullable=False)
+    comment_cont = db.Column(db.String(280), nullable=False)
     created_at = db.Column(db.DateTime(timezone=True),
                            server_default=func.now())
-    parentId = db.Column(db.Integer, ForeignKey("Comment.id"), nullable=True)
 
     def __repr__(self):
         return f'<Comment {self.id}>'
 
     def serialize(self):
         return {
-            "id": self.id,
+            "comment_id": self.id,
             "user_id": User.query.filter_by(id=self.user_id).first().name,
             "resource_id": self.resource_id,
             "comment_cont": self.comment_cont,
-            "parentId": self.parentId,
             "created_at": self.created_at,
+        }
+
+
+class Rating(db.Model):
+    __tablename__ = "Rating"
+    id = db.Column(db.Integer, primary_key=True)
+    rating_value = db.Column(db.Integer, nullable=False)
+    user_id = db.Column(db.Integer, ForeignKey("User.id"))
+    resource_id = db.Column(db.Integer, ForeignKey("Resource.id"))
+
+    def __repr__(self):
+        return f'<Rating {self.id}>'
+
+    def serialize(self):
+        return {
+            "rating_value": self.rating_value,
+            "rating_id": self.id,
+            "user_id": User.query.filter_by(id=self.user_id).first().name,
+            "resource_id": self.resource_id,
         }
 
 

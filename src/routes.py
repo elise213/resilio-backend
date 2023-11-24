@@ -6,7 +6,7 @@ from flask import app, jsonify, request, Response
 from flask import jsonify, request
 from flask import Flask, request, jsonify, url_for, Blueprint
 from flask_cors import cross_origin
-from src.models import db, User, Resource, Favorites, Comment, Drop, Schedule, Offering, FavoriteOfferings
+from src.models import db, User, Resource, Rating, Favorites, Comment, Drop, Schedule, Offering, FavoriteOfferings
 from src.utils import generate_sitemap, APIException
 from flask_jwt_extended import create_access_token
 from flask_jwt_extended import get_jwt_identity
@@ -60,6 +60,9 @@ def create_token():
         identity=user.id, expires_delta=expiration)
     return jsonify(access_token=access_token, is_org=user.is_org, favoriteOfferings=favoriteOfferings, avatar=user.avatar, name=user.name, favorites=favorites)
 
+# rating
+
+
 # create user
 
 
@@ -95,24 +98,21 @@ def create_user():
 @api.route('/createComment', methods=['POST'])
 @jwt_required()
 def create_comment():
-    if request.method == "POST":
-        user_id = get_jwt_identity()
-        request_body = request.get_json()
-        if not request_body["comment_cont"]:
-            return jsonify({"message": "Please include a message"}), 400
-        comment = Comment(
-            user_id=user_id,
-            resource_id=request_body["resource_id"],
-            comment_cont=request_body["comment_cont"],
-            parentId=request_body["parentId"],
-        )
-        db.session.add(comment)
-        db.session.commit()
-        return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
+    user_id = get_jwt_identity()
+    request_body = request.get_json()
+    if not request_body["comment_cont"]:
+        return jsonify({"message": "Please include a message"}), 400
+    comment = Comment(
+        user_id=user_id,
+        resource_id=request_body["resource_id"],
+        comment_cont=request_body["comment_cont"],
+    )
+    db.session.add(comment)
+    db.session.commit()
+    return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
+
 
 # get comments
-
-
 @api.route('/getcomments/<int:resource_id>', methods=['GET'])
 def getcomments(resource_id):
     print(resource_id)
@@ -124,6 +124,47 @@ def getCommentsByResourceId(resourceId):
     comments = Comment.query.filter_by(resource_id=resourceId).all()
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
+
+
+# __________________________________________________RATINGS
+# Create rating
+@api.route('/rating', methods=['POST'])
+@jwt_required()
+def create_rating():
+    user_id = get_jwt_identity()
+    request_body = request.get_json()
+    rating_value = request_body["rating_value"]
+    if not rating_value:
+        return jsonify({"message": "Please include a Rating"}), 400
+    if rating_value < 1 and rating_value > 5:
+        return jsonify({"message": "value outside range"}), 400
+    rating = Rating(
+        user_id=user_id,
+        resource_id=request_body["resource_id"],
+        rating_value=request_body["rating_value"],
+    )
+    db.session.add(rating)
+    db.session.commit()
+    return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
+
+# Get rating
+
+
+@api.route('/rating', methods=['GET'])
+def get_rating():
+    resource_id = request.args.get("resource")
+    average = getRatingsByResourceId(resource_id)
+    return jsonify({"rating": average}), 200
+
+
+def getRatingsByResourceId(resourceId):
+    ratings = Rating.query.filter_by(resource_id=resourceId).all()
+    serialized_ratings = [rating.serialize() for rating in ratings]
+    sum = 0
+    for rating in serialized_ratings:
+        sum = sum + rating.get("rating_value")
+    average = sum / len(serialized_ratings)
+    return average
 
 # __________________________________________________RESOURCES
 
