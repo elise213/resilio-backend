@@ -175,17 +175,21 @@ def create_rating():
 def get_rating():
     resource_id = request.args.get("resource")
     average = getRatingsByResourceId(resource_id)
+    if average is None:
+        return jsonify({"rating": "No ratings yet"}), 200
     return jsonify({"rating": average}), 200
 
 
 def getRatingsByResourceId(resourceId):
     ratings = Rating.query.filter_by(resource_id=resourceId).all()
-    serialized_ratings = [rating.serialize() for rating in ratings]
+    if not ratings:
+        return None
     sum = 0
-    for rating in serialized_ratings:
-        sum = sum + rating.get("rating_value")
-    average = sum / len(serialized_ratings)
+    for rating in ratings:
+        sum += rating.rating_value
+    average = sum / len(ratings)
     return average
+
 
 # __________________________________________________RESOURCES
 
