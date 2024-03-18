@@ -179,6 +179,7 @@ class Favorites(db.Model):
             "image": Resource.query.filter_by(name=self.name).first().image,
             "category": Resource.query.filter_by(name=self.name).first().category,
             "resource_id": Resource.query.filter_by(name=self.name).first().id,
+            "description": Resource.query.filter_by(name=self.name).first().description,
         }
 
 
