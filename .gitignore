@@ -7,4 +7,5 @@ public/*
 dist/*
 package.json
 !.vscode
+*.tar
 __pycache__/
