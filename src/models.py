@@ -17,7 +17,7 @@ class User(db.Model):
     is_org = db.Column(db.String(80), nullable=False)
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
-    rating = db.relationship("Rating", backref="User", lazy=True)
+    # rating = db.relationship("Rating", backref="User", lazy=True)
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -50,7 +50,7 @@ class Resource(db.Model):
     logo = db.Column(db.String(500), unique=False, nullable=True)
     user_id = db.Column(db.Integer, unique=False, nullable=True)
     comment = db.relationship("Comment", backref="Resource", lazy=True)
-    rating = db.relationship("Rating", backref="Resource", lazy=True)
+    # rating = db.relationship("Rating", backref="Resource", lazy=True)
     schedule = db.relationship(
         "Schedule", backref="Resource", lazy=True, uselist=False)
 
@@ -74,6 +74,30 @@ class Resource(db.Model):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "schedule": serialized_schedule
+        }
+
+
+class Favorites(db.Model):
+    __tablename__ = 'Favorites'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=True)
+    userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
+    resource = db.relationship('Resource', backref='Favorites', lazy=True)
+    resourceId = db.Column(db.Integer, db.ForeignKey(
+        'Resource.id'), nullable=False)
+
+    def __repr__(self):
+        return f'<Favorites {self.id}>'
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "userId": self.userId,
+            "resourceId": self.resource.id,
+            "name": self.resource.name if self.resource else None,
+            "image": self.resource.image if self.resource else None,
+            "category": self.resource.category if self.resource else None,
+            "description": self.resource.description if self.resource else None,
         }
 
 
@@ -124,9 +148,10 @@ class Schedule(db.Model):
 class Comment(db.Model):
     __tablename__ = "Comment"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, ForeignKey("User.id"))
-    resource_id = db.Column(db.Integer, ForeignKey("Resource.id"))
+    user_id = db.Column(db.Integer, db.ForeignKey("User.id"))
+    resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
     comment_cont = db.Column(db.String(280), nullable=False)
+    rating_value = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True),
                            server_default=func.now())
 
@@ -139,118 +164,6 @@ class Comment(db.Model):
             "user_id": User.query.filter_by(id=self.user_id).first().name,
             "resource_id": self.resource_id,
             "comment_cont": self.comment_cont,
-            "created_at": self.created_at,
-        }
-
-
-class Rating(db.Model):
-    __tablename__ = "Rating"
-    id = db.Column(db.Integer, primary_key=True)
-    rating_value = db.Column(db.Integer, nullable=False)
-    user_id = db.Column(db.Integer, ForeignKey("User.id"))
-    resource_id = db.Column(db.Integer, ForeignKey("Resource.id"))
-
-    def __repr__(self):
-        return f'<Rating {self.id}>'
-
-    def serialize(self):
-        return {
             "rating_value": self.rating_value,
-            "rating_id": self.id,
-            "user_id": User.query.filter_by(id=self.user_id).first().name,
-            "resource_id": self.resource_id,
-        }
-
-
-class Favorites(db.Model):
-    __tablename__ = 'Favorites'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(256), nullable=True)
-    userId = db.Column(db.Integer, nullable=False)
-
-    def __repr__(self):
-        return f'<Favorites {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "userId": self.userId,
-            "image": Resource.query.filter_by(name=self.name).first().image,
-            "category": Resource.query.filter_by(name=self.name).first().category,
-            "resource_id": Resource.query.filter_by(name=self.name).first().id,
-            "description": Resource.query.filter_by(name=self.name).first().description,
-        }
-
-
-class Offering(db.Model):
-    __tablename__ = "Offering"
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(256), unique=False, nullable=False)
-    offering_type = db.Column(db.String(256), unique=False, nullable=True)
-    description = db.Column(db.String(500), unique=False, nullable=True)
-    image = db.Column(db.String(500), unique=False, nullable=True)
-    image2 = db.Column(db.String(500), unique=False, nullable=True)
-    user_id = db.Column(db.Integer, unique=False, nullable=True)
-
-    def __repr__(self):
-        return f'<Offering {self.title}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "description": self.description,
-            "offering_type": self.offering_type,
-            "image": self.image,
-            "image2": self.image2,
-            "user_id": self.user_id,
-        }
-
-
-class FavoriteOfferings(db.Model):
-    __tablename__ = 'FavoriteOfferings'
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(256), nullable=True)
-    userId = db.Column(db.Integer, nullable=False)
-
-    def __repr__(self):
-        return f'<FavoriteOfferings {self.id}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "title": self.title,
-            "user_id": self.userId,
-            "category": Offering.query.filter_by(title=self.title).first().offering_type,
-            "image": Offering.query.filter_by(title=self.title).first().image,
-            "offering_id": Offering.query.filter_by(title=self.title).first().id
-
-        }
-
-
-class Drop(db.Model):
-    __tablename__ = "Drop"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(256), unique=False, nullable=False)
-    address = db.Column(db.String(256), unique=False, nullable=True)
-    phone = db.Column(db.String(256), unique=False, nullable=True)
-    type = db.Column(db.String(256), unique=False, nullable=True)
-    description = db.Column(db.String(500), unique=False, nullable=True)
-    identification = db.Column(db.String(500), unique=False, nullable=True)
-    image = db.Column(db.String(500), unique=False, nullable=True)
-
-    def __repr__(self):
-        return f'<Resource {self.name}>'
-
-    def serialize(self):
-        return {
-            "id": self.id,
-            "name": self.name,
-            "address": self.address,
-            "phone": self.phone,
-            "description": self.description,
-            "type": self.type,
-            "identification": self.identification,
-            "image": self.image,
+            "created_at": self.created_at,
         }
