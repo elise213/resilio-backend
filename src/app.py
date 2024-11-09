@@ -12,6 +12,7 @@ from src.admin import setup_admin
 from src.models import db, User
 from src.routes import api
 from src.auth import basic_auth
+from src.commands import setup_commands
 
 app = Flask(__name__)
 jwt = JWTManager(app)
@@ -36,6 +37,7 @@ db.init_app(app)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 setup_admin(app)
+setup_commands(app)
 
 
 @app.errorhandler(APIException)

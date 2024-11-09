@@ -17,7 +17,6 @@ class User(db.Model):
     is_org = db.Column(db.String(80), nullable=False)
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
-    # rating = db.relationship("Rating", backref="User", lazy=True)
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -50,7 +49,6 @@ class Resource(db.Model):
     logo = db.Column(db.String(500), unique=False, nullable=True)
     user_id = db.Column(db.Integer, unique=False, nullable=True)
     comment = db.relationship("Comment", backref="Resource", lazy=True)
-    # rating = db.relationship("Rating", backref="Resource", lazy=True)
     schedule = db.relationship(
         "Schedule", backref="Resource", lazy=True, uselist=False)
 
@@ -167,3 +165,4 @@ class Comment(db.Model):
             "rating_value": self.rating_value,
             "created_at": self.created_at,
         }
+

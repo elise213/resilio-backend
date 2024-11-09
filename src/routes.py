@@ -148,7 +148,6 @@ def create_comment_and_rating():
     except ValueError:
         return jsonify({"message": "Rating value must be an integer between 1 and 5", "status": "false"}), 400
 
-    # Create and save the comment with rating_value included
     new_comment = Comment(
         user_id=user_id, resource_id=resource_id, comment_cont=comment_content, rating_value=rating_value)
     db.session.add(new_comment)
@@ -158,42 +157,38 @@ def create_comment_and_rating():
     return jsonify({"message": "Thank you for your feedback", "status": "true"}), 200
 
 # Create rating
+# @api.route('/rating', methods=['POST'])
+# @jwt_required()
+# def create_rating():
+#     user_id = get_jwt_identity()
+#     request_body = request.get_json()
 
+#     # Convert rating_value to an integer
+#     try:
+#         rating_value = int(request_body.get("rating_value"))
+#     except (TypeError, ValueError):
+#         return jsonify({"message": "Invalid rating value"}), 400
 
-@api.route('/rating', methods=['POST'])
-@jwt_required()
-def create_rating():
-    user_id = get_jwt_identity()
-    request_body = request.get_json()
+#     resource_id = request_body.get("resource_id")
 
-    # Convert rating_value to an integer
-    try:
-        rating_value = int(request_body.get("rating_value"))
-    except (TypeError, ValueError):
-        return jsonify({"message": "Invalid rating value"}), 400
+#     if not rating_value:
+#         return jsonify({"message": "Please include a Rating"}), 400
+#     if not (1 <= rating_value <= 5):
+#         return jsonify({"message": "value outside range"}), 400
 
-    resource_id = request_body.get("resource_id")
+#     existing_rating = Rating.query.filter_by(
+#         user_id=user_id, resource_id=resource_id).first()
 
-    if not rating_value:
-        return jsonify({"message": "Please include a Rating"}), 400
-    if not (1 <= rating_value <= 5):
-        return jsonify({"message": "value outside range"}), 400
+#     if existing_rating:
+#         existing_rating.rating_value = rating_value
+#     else:
+   
+#         new_rating = Rating(
+#             user_id=user_id, resource_id=resource_id, rating_value=rating_value)
+#         db.session.add(new_rating)
 
-    # Check if a rating already exists for this user and resource
-    existing_rating = Rating.query.filter_by(
-        user_id=user_id, resource_id=resource_id).first()
-
-    if existing_rating:
-        # Update the existing rating
-        existing_rating.rating_value = rating_value
-    else:
-        # Create a new rating
-        new_rating = Rating(
-            user_id=user_id, resource_id=resource_id, rating_value=rating_value)
-        db.session.add(new_rating)
-
-    db.session.commit()
-    return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
+#     db.session.commit()
+#     return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
 
 
 # Get rating
@@ -206,25 +201,21 @@ def get_rating():
     return jsonify({"rating": average}), 200
 
 
-def getRatingsByResourceId(resourceId):
-    # Query comments with a non-null rating_value for the given resource_id
-    comments_with_ratings = Comment.query.filter(
-        Comment.resource_id == resourceId,
-        Comment.rating_value != None  # Ensure that rating_value is not null
-    ).all()
+def getRatingsByResourceId(resource_id):
+    try:
+        comments = Comment.query.filter_by(resource_id=resource_id).filter(Comment.rating_value.isnot(None)).all()
+        if not comments:
+            return None
+        sum_of_ratings = sum(comment.rating_value for comment in comments)
+        average_rating = sum_of_ratings / len(comments)
+        return average_rating
 
-    # If no comments with ratings are found, return None
-    if not comments_with_ratings:
-        return None
+    except Exception as e:
+        # Log any errors for debugging
+        print(f"Error fetching ratings for resource {resource_id}: {e}")
+        return None  # Return None if there's an error
 
-    # Sum the rating_values
-    sum_of_ratings = sum(
-        comment.rating_value for comment in comments_with_ratings)
 
-    # Calculate the average
-    average_rating = sum_of_ratings / len(comments_with_ratings)
-
-    return average_rating
 
 
 # __________________________________________________RESOURCES
@@ -376,37 +367,30 @@ def edit_resource(resource_id):
                 "start", schedule.mondayStart)
             schedule.mondayEnd = days.get(
                 "monday", {}).get("end", schedule.mondayEnd)
-
             schedule.tuesdayStart = days.get("tuesday", {}).get(
                 "start", schedule.tuesdayStart)
             schedule.tuesdayEnd = days.get(
                 "tuesday", {}).get("end", schedule.tuesdayEnd)
-
             schedule.wednesdayStart = days.get("wednesday", {}).get(
                 "start", schedule.wednesdayStart)
             schedule.wednesdayEnd = days.get(
                 "wednesday", {}).get("end", schedule.wednesdayEnd)
-
             schedule.thursdayStart = days.get("thursday", {}).get(
                 "start", schedule.thursdayStart)
             schedule.thursdayEnd = days.get(
                 "thursday", {}).get("end", schedule.thursdayEnd)
-
             schedule.fridayStart = days.get("friday", {}).get(
                 "start", schedule.fridayStart)
             schedule.fridayEnd = days.get(
                 "friday", {}).get("end", schedule.fridayEnd)
-
             schedule.saturdayStart = days.get("saturday", {}).get(
                 "start", schedule.saturdayStart)
             schedule.saturdayEnd = days.get(
                 "saturday", {}).get("end", schedule.saturdayEnd)
-
             schedule.sundayStart = days.get("sunday", {}).get(
                 "start", schedule.sundayStart)
             schedule.sundayEnd = days.get(
                 "sunday", {}).get("end", schedule.sundayEnd)
-
             db.session.commit()
 
             return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
@@ -417,32 +401,26 @@ def edit_resource(resource_id):
                 "start", newSchedule.mondayStart)
             newSchedule.mondayEnd = days.get(
                 "monday", {}).get("end", newSchedule.mondayEnd)
-
             newSchedule.tuesdayStart = days.get("tuesday", {}).get(
                 "start", newSchedule.tuesdayStart)
             newSchedule.tuesdayEnd = days.get(
                 "tuesday", {}).get("end", newSchedule.tuesdayEnd)
-
             newSchedule.wednesdayStart = days.get("wednesday", {}).get(
                 "start", newSchedule.wednesdayStart)
             newSchedule.wednesdayEnd = days.get(
                 "wednesday", {}).get("end", newSchedule.wednesdayEnd)
-
             newSchedule.thursdayStart = days.get("thursday", {}).get(
                 "start", newSchedule.thursdayStart)
             newSchedule.thursdayEnd = days.get(
                 "thursday", {}).get("end", newSchedule.thursdayEnd)
-
             newSchedule.fridayStart = days.get("friday", {}).get(
                 "start", newSchedule.fridayStart)
             newSchedule.fridayEnd = days.get(
                 "friday", {}).get("end", newSchedule.fridayEnd)
-
             newSchedule.saturdayStart = days.get("saturday", {}).get(
                 "start", newSchedule.saturdayStart)
             newSchedule.saturdayEnd = days.get(
                 "saturday", {}).get("end", newSchedule.saturdayEnd)
-
             newSchedule.sundayStart = days.get("sunday", {}).get(
                 "start", newSchedule.sundayStart)
             newSchedule.sundayEnd = days.get(
@@ -506,13 +484,10 @@ def delete_resource(resource_id):
             db.session.delete(resource)
             db.session.commit()
 
-            # Return a success response
             return jsonify({"message": "Resource deleted successfully", "status": "true"}), 200
         else:
-            # Resource not found
             return jsonify({"message": "Resource not found", "status": "false"}), 404
     else:
-        # User ID is not in the allowed range
         return jsonify({"message": "Unauthorized: User does not have permission to delete resources", "status": "false"}), 403
 
 
@@ -559,7 +534,6 @@ def get_all_resources():
         }
         resources_list.append(resource_data)
 
-    # Debugging print statement
     print(f"Returning JSON response with {len(resources_list)} resources")
     return jsonify(resources=resources_list), 200
 
@@ -576,7 +550,6 @@ def addFavorite():
     resourceId = request_body['resourceId']
     print(f"User ID: {userId}, Resource ID: {resourceId}")
 
-    # Check if the resource exists
     resource_exists = Resource.query.filter_by(id=resourceId).first()
     if not resource_exists:
         print("Resource not found")
@@ -630,37 +603,16 @@ def getFavorites():
     return jsonify(favorites=favorites)
 
 
+
 def getFavoritesByUserId(user_id):
+    # Query Favorites and join with Resource on resourceId
     favorites = (db.session.query(Favorites, Resource)
                  .join(Resource, Resource.id == Favorites.resourceId)
                  .filter(Favorites.userId == user_id)
                  .all())
-    return [{"favoriteId": fav.id, "resource": res.serialize()} for fav, res in favorites]
-
-
-def getScheduleForResource(resource_id):
-    schedule = Schedule.query.filter_by(resource_id=resource_id).first()
-    if schedule:
-        return {
-            "monday": {"start": schedule.mondayStart, "end": schedule.mondayEnd},
-            # ... repeat for other days
-            "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd}
-        }
-    else:
-        return {}  # Return an empty dict if no schedule is found
-
-    # Join Favorites with Resource using 'resource_id' as the foreign key in Favorites.
-    favorites = db.session.query(
-        Favorites, Resource
-    ).join(
-        Resource, Favorites.resource_id == Resource.id
-    ).filter(
-        Favorites.userId == userId
-    ).all()
 
     serialized_favorites = []
     for favorite, resource in favorites:
-
         favorite_data = favorite.serialize()
 
         # Add additional resource details to favorite_data
@@ -675,13 +627,29 @@ def getScheduleForResource(resource_id):
                 "image2": resource.image2,
                 "latitude": resource.latitude,
                 "longitude": resource.longitude,
-                "days": getScheduleForResource(resource.id)
+                "days": getScheduleForResource(resource.id)  
             }
         })
 
         serialized_favorites.append(favorite_data)
 
     return serialized_favorites
+
+
+def getScheduleForResource(resource_id):
+    schedule = Schedule.query.filter_by(resource_id=resource_id).first()
+    if schedule:
+        return {
+            "monday": {"start": schedule.mondayStart, "end": schedule.mondayEnd},
+            "tuesday": {"start": schedule.tuesdayStart, "end": schedule.tuesdayEnd},
+            "wednesday": {"start": schedule.wednesdayStart, "end": schedule.wednesdayEnd},
+            "thursday": {"start": schedule.thursdayStart, "end": schedule.thursdayEnd},
+            "friday": {"start": schedule.fridayStart, "end": schedule.fridayEnd},
+            "saturday": {"start": schedule.saturdayStart, "end": schedule.saturdayEnd},
+            "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd}
+        }
+    else:
+        return {} 
 
 @api.route('/getSchedules', methods=['GET'])
 def getSchedules():

@@ -90,3 +90,4 @@ def setup_admin(app):
     admin.add_view(UserModelView(User, db.session))
     admin.add_view(CommentModelView(Comment, db.session))
     admin.add_view(FavoriteModelView(Favorites, db.session))
+

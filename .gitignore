@@ -1,5 +1,7 @@
 .env
 .venv
+.pem
+.DS_Store
 database.database
 database.db
 diagram.png
