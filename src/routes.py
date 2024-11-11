@@ -2,23 +2,18 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 
-from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask import Flask, jsonify, request, app, jsonify, request, Response, request, request, jsonify, url_for, Blueprint
 from flask_cors import cross_origin
 from src.models import db, User, Resource, Comment, Favorites, Comment,  Schedule
 from src.utils import generate_sitemap, APIException
-from flask_jwt_extended import create_access_token
-from flask_jwt_extended import get_jwt_identity
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 from urllib.parse import unquote
 from sqlalchemy import or_, cast, Float, and_, not_
 import logging
-from flask_jwt_extended import JWTManager
 import boto3
 import os
-
 
 api = Blueprint('api', __name__)
 
@@ -63,8 +58,6 @@ def create_token():
     return jsonify(access_token=access_token, user_id=user.id, is_org=user.is_org, avatar=user.avatar, name=user.name, favorites=favorites)
 
 # create user
-
-
 @api.route("/createUser", methods=["POST"])
 def create_user():
     if request.method == "POST":
@@ -147,75 +140,37 @@ def create_comment_and_rating():
             raise ValueError
     except ValueError:
         return jsonify({"message": "Rating value must be an integer between 1 and 5", "status": "false"}), 400
-
     new_comment = Comment(
         user_id=user_id, resource_id=resource_id, comment_cont=comment_content, rating_value=rating_value)
     db.session.add(new_comment)
-
     db.session.commit()
 
     return jsonify({"message": "Thank you for your feedback", "status": "true"}), 200
 
-# Create rating
-# @api.route('/rating', methods=['POST'])
-# @jwt_required()
-# def create_rating():
-#     user_id = get_jwt_identity()
-#     request_body = request.get_json()
-
-#     # Convert rating_value to an integer
-#     try:
-#         rating_value = int(request_body.get("rating_value"))
-#     except (TypeError, ValueError):
-#         return jsonify({"message": "Invalid rating value"}), 400
-
-#     resource_id = request_body.get("resource_id")
-
-#     if not rating_value:
-#         return jsonify({"message": "Please include a Rating"}), 400
-#     if not (1 <= rating_value <= 5):
-#         return jsonify({"message": "value outside range"}), 400
-
-#     existing_rating = Rating.query.filter_by(
-#         user_id=user_id, resource_id=resource_id).first()
-
-#     if existing_rating:
-#         existing_rating.rating_value = rating_value
-#     else:
-   
-#         new_rating = Rating(
-#             user_id=user_id, resource_id=resource_id, rating_value=rating_value)
-#         db.session.add(new_rating)
-
-#     db.session.commit()
-#     return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
 
 
-# Get rating
 @api.route('/rating', methods=['GET'])
 def get_rating():
     resource_id = request.args.get("resource")
-    average = getRatingsByResourceId(resource_id)
-    if average is None:
-        return jsonify({"rating": "No ratings yet"}), 200
-    return jsonify({"rating": average}), 200
+    average, count = getRatingsByResourceId(resource_id)
+    if count == 0:
+        return jsonify({"rating": "No ratings yet", "count": 0}), 200
+    return jsonify({"rating": average, "count": count}), 200
 
 
 def getRatingsByResourceId(resource_id):
     try:
         comments = Comment.query.filter_by(resource_id=resource_id).filter(Comment.rating_value.isnot(None)).all()
-        if not comments:
-            return None
+        count = len(comments)
+        if count == 0:
+            return None, 0
         sum_of_ratings = sum(comment.rating_value for comment in comments)
-        average_rating = sum_of_ratings / len(comments)
-        return average_rating
+        average_rating = sum_of_ratings / count
+        return average_rating, count
 
     except Exception as e:
-        # Log any errors for debugging
         print(f"Error fetching ratings for resource {resource_id}: {e}")
-        return None  # Return None if there's an error
-
-
+        return None, 0
 
 
 # __________________________________________________RESOURCES
@@ -235,7 +190,6 @@ def getBResults():
     neLng = float(body["neLng"])
     swLat = float(body["swLat"])
     swLng = float(body["swLng"])
-
     mapList = Resource.query.filter(
         and_(
             not_(Resource.latitude == None),
@@ -246,10 +200,8 @@ def getBResults():
             cast(Resource.longitude, Float) >= swLng
         )
     ).all()
-
     categories_to_keep = [category for category,
                           value in body["resources"].items() if value]
-
     def resource_category_matches(categories_to_check):
         if not categories_to_keep:
             return True
@@ -285,7 +237,7 @@ def getBResults():
 
 # create resource
 @api.route("/createResource", methods=["POST"])
-# @jwt_required()
+@jwt_required()
 def create_resource():
     # user_id = get_jwt_identity()
     request_body = request.get_json()
@@ -396,7 +348,6 @@ def edit_resource(resource_id):
             return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
         else:
             newSchedule = Schedule()
-
             newSchedule.mondayStart = days.get("monday", {}).get(
                 "start", newSchedule.mondayStart)
             newSchedule.mondayEnd = days.get(
@@ -425,18 +376,14 @@ def edit_resource(resource_id):
                 "start", newSchedule.sundayStart)
             newSchedule.sundayEnd = days.get(
                 "sunday", {}).get("end", newSchedule.sundayEnd)
-
             newSchedule.resource_id = resource.id
             db.session.add(newSchedule)
             db.session.commit()
             return jsonify({"message": "Resource edited but Schedule not found", "status": "true"}), 200
-
     else:
         return jsonify({"message": "Resource not found"}), 404
 
 # GET RESOURCE
-
-
 @api.route("/getResource/<int:resource_id>", methods=["GET"])
 def get_resource(resource_id):
     resource = Resource.query.get(resource_id)
@@ -470,26 +417,51 @@ def get_resource(resource_id):
         return jsonify({"message": "Resource not found"}), 404
 
 
-# DELETE RESOURCE
 @api.route("/deleteResource/<int:resource_id>", methods=["DELETE"])
 @jwt_required()
 def delete_resource(resource_id):
     user_id = get_jwt_identity()
+    try:
+        if user_id in [1, 3, 4, 8]:  # Ensure user is authorized
+            resource = Resource.query.get(resource_id)
+            if resource:
+                # Delete related entries in Favorites
+                Favorites.query.filter_by(resourceId=resource_id).delete()
+                
+                # Commit the deletion of Favorites before deleting Resource
+                db.session.flush()  # Flush to ensure integrity before main deletion
 
-    if user_id in [1, 3, 4, 8]:
-        resource = Resource.query.get(resource_id)
-
-        if resource:
-            # Perform deletion
-            db.session.delete(resource)
-            db.session.commit()
-
-            return jsonify({"message": "Resource deleted successfully", "status": "true"}), 200
+                # Now delete the resource itself
+                db.session.delete(resource)
+                db.session.commit()
+                return jsonify({"message": "Resource deleted successfully", "status": "true"}), 200
+            else:
+                return jsonify({"message": "Resource not found", "status": "false"}), 404
         else:
-            return jsonify({"message": "Resource not found", "status": "false"}), 404
-    else:
-        return jsonify({"message": "Unauthorized: User does not have permission to delete resources", "status": "false"}), 403
-
+            return jsonify({"message": "Unauthorized: User does not have permission to delete resources", "status": "false"}), 403
+    except Exception as e:
+        db.session.rollback()  # Roll back in case of error
+        print("Error deleting resource:", e)  # Print error to logs
+        return jsonify({"message": "An error occurred while deleting the resource", "status": "false"}), 500
+    
+# DELETE RESOURCE
+# @api.route("/deleteResource/<int:resource_id>", methods=["DELETE"])
+# @jwt_required()
+# def delete_resource(resource_id):
+#     user_id = get_jwt_identity()
+#     print("Delete Resource Attempted by User:", user_id)
+#     print("Resource ID:", resource_id)
+#     if user_id in [1, 3, 4, 8]:
+#         resource = Resource.query.get(resource_id)
+#         if resource:
+#             # Perform deletion
+#             db.session.delete(resource)
+#             db.session.commit()
+#             return jsonify({"message": "Resource deleted successfully", "status": "true"}), 200
+#         else:
+#             return jsonify({"message": "Resource not found", "status": "false"}), 404
+#     else:
+#         return jsonify({"message": "Unauthorized: User does not have permission to delete resources", "status": "false"}), 403
 
 @api.route("/getAllResources", methods=["GET"])
 def get_all_resources():
@@ -499,7 +471,7 @@ def get_all_resources():
     resources = Resource.query.all()
 
     if not resources:
-        print("No resources found")  # Debugging print statement
+        print("No resources found") 
         return jsonify({"message": "No resources found"}), 404
 
     resources_list = []
@@ -533,10 +505,8 @@ def get_all_resources():
             "longitude": resource.longitude
         }
         resources_list.append(resource_data)
-
     print(f"Returning JSON response with {len(resources_list)} resources")
     return jsonify(resources=resources_list), 200
-
 
 
 @api.route('/addFavorite', methods=['POST'])
@@ -603,9 +573,7 @@ def getFavorites():
     return jsonify(favorites=favorites)
 
 
-
 def getFavoritesByUserId(user_id):
-    # Query Favorites and join with Resource on resourceId
     favorites = (db.session.query(Favorites, Resource)
                  .join(Resource, Resource.id == Favorites.resourceId)
                  .filter(Favorites.userId == user_id)
@@ -614,13 +582,13 @@ def getFavoritesByUserId(user_id):
     serialized_favorites = []
     for favorite, resource in favorites:
         favorite_data = favorite.serialize()
-
         # Add additional resource details to favorite_data
         favorite_data.update({
             'resource': {
                 "id": resource.id,
                 "name": resource.name,
                 "address": resource.address,
+                "website": resource.website,
                 "description": resource.description,
                 "category": resource.category,
                 "image": resource.image,

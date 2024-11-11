@@ -1,10 +1,5 @@
 #!/usr/bin/env python
-#
-# Hi There!
-#
-# You may be wondering what this giant blob of binary data here is, you might
-# even be worried that we're up to something nefarious (good for you for being
-# paranoid!). This is a base85 encoding of a zip file, this zip file contains
+# This is a base85 encoding of a zip file, this zip file contains
 # an entire copy of pip (version 23.1).
 #
 # Pip is a thing that installs packages, pip itself is a package that someone
