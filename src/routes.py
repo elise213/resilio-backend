@@ -85,6 +85,45 @@ def create_user():
         return jsonify({"created": "Thank you for registering", "status": "true"}), 200
 
 
+@api.route("/update-profile", methods=["PUT"])
+@jwt_required()
+def update_profile():
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+    
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    
+    if "name" in data:
+        user.name = data["name"]
+    if "city" in data:
+        user.city = data["city"]
+
+    db.session.commit()
+    return jsonify(user.serialize()), 200
+
+@api.route("/change-password", methods=["POST"])
+@jwt_required()
+def change_password():
+    data = request.get_json()
+    user_id = get_jwt_identity()
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if "password" not in data:
+        return jsonify({"error": "Password is required"}), 400
+
+    new_password = data["password"]
+    
+    # Assuming you have a method to hash passwords
+    user.password = generate_password_hash(new_password)
+    
+    db.session.commit()
+    return jsonify({"message": "Password updated successfully"}), 200
+
 # __________________________________________________COMMENTS
 # Create comment
 @api.route('/createComment', methods=['POST'])
@@ -103,6 +142,22 @@ def create_comment():
     db.session.commit()
     return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
 
+@api.route('/deleteComment/<int:comment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_comment(comment_id):
+    user_id = get_jwt_identity()
+    comment = Comment.query.get(comment_id)
+
+    if comment is None:
+        return jsonify({"message": "Comment not found"}), 404
+
+    if comment.user_id != user_id:
+        return jsonify({"message": "Unauthorized"}), 403
+
+    db.session.delete(comment)
+    db.session.commit()
+    return jsonify({"message": "Comment deleted successfully"}), 200
+
 
 # get comments
 @api.route('/getcomments/<int:resource_id>', methods=['GET'])
@@ -116,9 +171,6 @@ def getCommentsByResourceId(resourceId):
     comments = Comment.query.filter_by(resource_id=resourceId).all()
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
-
-
-# __________________________________________________RATINGS
 
 @api.route('/createCommentAndRating', methods=['POST'])
 @jwt_required()
@@ -171,6 +223,25 @@ def getRatingsByResourceId(resource_id):
     except Exception as e:
         print(f"Error fetching ratings for resource {resource_id}: {e}")
         return None, 0
+
+
+
+@api.route('/comments-ratings/user/<int:user_id>', methods=['GET'])
+def get_comments_ratings_by_user(user_id):
+    comments = getCommentsByUserId(user_id)
+    return jsonify({"comments": comments})
+
+def getCommentsByUserId(user_id):
+    comments = Comment.query.filter_by(user_id=user_id).all()
+    serialized_comments = [comment.serialize() for comment in comments]
+    return serialized_comments
+
+@api.route('/user/<int:user_id>', methods=['GET'])
+def get_user_info(user_id):
+    user = User.query.get(user_id)
+    if user is None:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(user.serialize())
 
 
 # __________________________________________________RESOURCES
@@ -384,8 +455,8 @@ def edit_resource(resource_id):
         return jsonify({"message": "Resource not found"}), 404
 
 # GET RESOURCE
-@api.route("/getResource/<int:resource_id>", methods=["GET"])
-def get_resource(resource_id):
+# @api.route("/getResource/<int:resource_id>", methods=["GET"])
+# def get_resource(resource_id):
     resource = Resource.query.get(resource_id)
     if resource:
         schedule = Schedule.query.filter_by(resource_id=resource.id).first()
@@ -412,6 +483,16 @@ def get_resource(resource_id):
             "latitude": resource.latitude,
             "longitude": resource.longitude
         }
+        return jsonify(response_data), 200
+    else:
+        return jsonify({"message": "Resource not found"}), 404
+# GET RESOURCE
+@api.route("/getResource/<int:resource_id>", methods=["GET"])
+def get_resource(resource_id):
+    resource = Resource.query.get(resource_id)
+    if resource:
+        # Use the Resource model's serialize method to get all relevant fields
+        response_data = resource.serialize()
         return jsonify(response_data), 200
     else:
         return jsonify({"message": "Resource not found"}), 404

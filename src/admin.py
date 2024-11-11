@@ -52,8 +52,8 @@ class UserModelView(ModelView):
         "name",
         "email",
         "is_org",
-        "avatar",
-        "picture"
+        "picture",
+        "city"
     }
 
 

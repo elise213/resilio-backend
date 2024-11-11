@@ -17,6 +17,7 @@ class User(db.Model):
     is_org = db.Column(db.String(80), nullable=False)
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
+    city = db.Column(db.String(80), nullable=True) 
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -28,7 +29,8 @@ class User(db.Model):
             "email": self.email,
             "is_org": self.is_org,
             "avatar": self.avatar,
-            "picture": self.picture
+            "picture": self.picture,
+            "city": self.city
             # do not serialize the password, its a security breach
         }
 
@@ -143,6 +145,29 @@ class Schedule(db.Model):
         }
 
 
+# class Comment(db.Model):
+#     __tablename__ = "Comment"
+#     id = db.Column(db.Integer, primary_key=True)
+#     user_id = db.Column(db.Integer, db.ForeignKey("User.id"))
+#     resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
+#     comment_cont = db.Column(db.String(280), nullable=False)
+#     rating_value = db.Column(db.Integer, nullable=True)
+#     created_at = db.Column(db.DateTime(timezone=True),
+#                            server_default=func.now())
+
+#     def __repr__(self):
+#         return f'<Comment {self.id}>'
+
+#     def serialize(self):
+#         return {
+#             "comment_id": self.id,
+#             "user_id": User.query.filter_by(id=self.user_id).first().name,
+#             "resource_id": self.resource_id,
+#             "comment_cont": self.comment_cont,
+#             "rating_value": self.rating_value,
+#             "created_at": self.created_at,
+#         }
+
 class Comment(db.Model):
     __tablename__ = "Comment"
     id = db.Column(db.Integer, primary_key=True)
@@ -150,19 +175,23 @@ class Comment(db.Model):
     resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
     comment_cont = db.Column(db.String(280), nullable=False)
     rating_value = db.Column(db.Integer, nullable=True)
-    created_at = db.Column(db.DateTime(timezone=True),
-                           server_default=func.now())
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
         return f'<Comment {self.id}>'
 
     def serialize(self):
+        user = User.query.get(self.user_id)  # Fetch user details
+        resource = Resource.query.get(self.resource_id)  # Fetch resource details
         return {
             "comment_id": self.id,
-            "user_id": User.query.filter_by(id=self.user_id).first().name,
+            "user_id": self.user_id,  # Ensure numeric user_id
+            "user_name": user.name if user else None,  # Optional: add user name if needed
             "resource_id": self.resource_id,
+            "resource_name": resource.name if resource else None,  # Include resource name
             "comment_cont": self.comment_cont,
             "rating_value": self.rating_value,
             "created_at": self.created_at,
         }
+
 
