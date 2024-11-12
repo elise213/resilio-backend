@@ -1,7 +1,7 @@
 
 import os
 from flask_admin import Admin
-from src.models import db, User, Resource, Comment, Favorites, Schedule
+from src.models import db, User, CommentLike, Resource, Comment, Favorites, Schedule
 from flask_admin.contrib.sqla import ModelView
 
 
@@ -77,8 +77,13 @@ class CommentModelView(ModelView):
         "comment_cont",
         "created_at",
         "rating_value",
+        "like_count"
     }
 
+class CommentLikeModelView(ModelView):
+    column_list = {
+        "id", "user_id", "comment_id"
+    }
 
 def setup_admin(app):
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample key')
@@ -89,5 +94,6 @@ def setup_admin(app):
     admin.add_view(ScheduleModelView(Schedule, db.session))
     admin.add_view(UserModelView(User, db.session))
     admin.add_view(CommentModelView(Comment, db.session))
+    admin.add_view(CommentLikeModelView(CommentLike, db.session))
     admin.add_view(FavoriteModelView(Favorites, db.session))
 

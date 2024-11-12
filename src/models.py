@@ -1,23 +1,31 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.orm import relationship
 
 import json
 
 db = SQLAlchemy()
 
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+
+db = SQLAlchemy()
 
 class User(db.Model):
     __tablename__ = "User"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256))
     email = db.Column(db.String(256), unique=True, nullable=False)
-    password = db.Column(db.String(256), unique=False, nullable=False)
+    password = db.Column(db.String(256), nullable=False)
     is_org = db.Column(db.String(80), nullable=False)
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
-    city = db.Column(db.String(80), nullable=True) 
+    city = db.Column(db.String(80), nullable=True)
+    comment_likes = relationship("CommentLike", backref="user", lazy="dynamic")
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -31,8 +39,57 @@ class User(db.Model):
             "avatar": self.avatar,
             "picture": self.picture,
             "city": self.city
-            # do not serialize the password, its a security breach
         }
+
+class Comment(db.Model):
+    __tablename__ = "Comment"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("User.id"))
+    resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
+    comment_cont = db.Column(db.String(280), nullable=False)
+    rating_value = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    comment_likes = relationship("CommentLike", backref="comment", lazy="dynamic")
+
+    def __repr__(self):
+        return f'<Comment {self.id}>'
+
+    def serialize(self):
+        user = User.query.get(self.user_id)
+        resource = Resource.query.get(self.resource_id)
+        like_count = self.comment_likes.count()  # Correctly count comment likes
+        return {
+            "comment_id": self.id,
+            "user_id": self.user_id,
+            "user_name": user.name if user else None,
+            "resource_id": self.resource_id,
+            "resource_name": resource.name if resource else None,
+            "comment_cont": self.comment_cont,
+            "rating_value": self.rating_value,
+            "created_at": self.created_at,
+            "like_count": like_count,
+        }
+
+class CommentLike(db.Model):
+    __tablename__ = "CommentLike"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("User.id"), nullable=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey("Comment.id"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("user_id", "comment_id", name="unique_user_comment_like"),)
+
+    def __repr__(self):
+        return f'<CommentLike User {self.user_id} -> Comment {self.comment_id}>'
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "comment_id": self.comment_id,
+            "created_at": self.created_at
+        }
+
 
 
 class Resource(db.Model):
@@ -44,6 +101,7 @@ class Resource(db.Model):
     category = db.Column(db.String(256), unique=False, nullable=True)
     website = db.Column(db.String(256), unique=False, nullable=True)
     description = db.Column(db.String(900), unique=False, nullable=True)
+    alert = db.Column(db.String(900), unique=False, nullable=True)
     latitude = db.Column(db.Float, unique=False, nullable=True)
     longitude = db.Column(db.Float, unique=False, nullable=True)
     image = db.Column(db.String(500), unique=False, nullable=True)
@@ -66,6 +124,7 @@ class Resource(db.Model):
             "phone": self.phone,
             "website": self.website,
             "description": self.description,
+            "alert": self.alert,
             "category": self.category,
             "image": self.image,
             "image2": self.image2,
@@ -100,7 +159,6 @@ class Favorites(db.Model):
             "description": self.resource.description if self.resource else None,
         }
 
-
 class Schedule(db.Model):
     __tablename__ = 'Schedule'
     id = db.Column(db.Integer, primary_key=True)
@@ -126,72 +184,11 @@ class Schedule(db.Model):
 
     def serialize(self):
         return {
-            "id": self.id,
-            "mondayStart": self.mondayStart,
-            "mondayEnd": self.mondayEnd,
-            "tuesdayStart": self.tuesdayStart,
-            "tuesdayEnd": self.tuesdayEnd,
-            "wednesdayStart": self.wednesdayStart,
-            "wednesdayEnd": self.wednesdayEnd,
-            "thursdayStart": self.thursdayStart,
-            "thursdayEnd": self.thursdayEnd,
-            "fridayStart": self.fridayStart,
-            "fridayEnd": self.fridayEnd,
-            "saturdayStart": self.saturdayStart,
-            "saturdayEnd": self.saturdayEnd,
-            "sundayStart": self.sundayStart,
-            "sundayEnd": self.sundayEnd,
-            "resource_id": self.resource_id,
+            "monday": {"start": self.mondayStart or "", "end": self.mondayEnd or ""},
+            "tuesday": {"start": self.tuesdayStart or "", "end": self.tuesdayEnd or ""},
+            "wednesday": {"start": self.wednesdayStart or "", "end": self.wednesdayEnd or ""},
+            "thursday": {"start": self.thursdayStart or "", "end": self.thursdayEnd or ""},
+            "friday": {"start": self.fridayStart or "", "end": self.fridayEnd or ""},
+            "saturday": {"start": self.saturdayStart or "", "end": self.saturdayEnd or ""},
+            "sunday": {"start": self.sundayStart or "", "end": self.sundayEnd or ""}
         }
-
-
-# class Comment(db.Model):
-#     __tablename__ = "Comment"
-#     id = db.Column(db.Integer, primary_key=True)
-#     user_id = db.Column(db.Integer, db.ForeignKey("User.id"))
-#     resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
-#     comment_cont = db.Column(db.String(280), nullable=False)
-#     rating_value = db.Column(db.Integer, nullable=True)
-#     created_at = db.Column(db.DateTime(timezone=True),
-#                            server_default=func.now())
-
-#     def __repr__(self):
-#         return f'<Comment {self.id}>'
-
-#     def serialize(self):
-#         return {
-#             "comment_id": self.id,
-#             "user_id": User.query.filter_by(id=self.user_id).first().name,
-#             "resource_id": self.resource_id,
-#             "comment_cont": self.comment_cont,
-#             "rating_value": self.rating_value,
-#             "created_at": self.created_at,
-#         }
-
-class Comment(db.Model):
-    __tablename__ = "Comment"
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("User.id"))
-    resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
-    comment_cont = db.Column(db.String(280), nullable=False)
-    rating_value = db.Column(db.Integer, nullable=True)
-    created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
-
-    def __repr__(self):
-        return f'<Comment {self.id}>'
-
-    def serialize(self):
-        user = User.query.get(self.user_id)  # Fetch user details
-        resource = Resource.query.get(self.resource_id)  # Fetch resource details
-        return {
-            "comment_id": self.id,
-            "user_id": self.user_id,  # Ensure numeric user_id
-            "user_name": user.name if user else None,  # Optional: add user name if needed
-            "resource_id": self.resource_id,
-            "resource_name": resource.name if resource else None,  # Include resource name
-            "comment_cont": self.comment_cont,
-            "rating_value": self.rating_value,
-            "created_at": self.created_at,
-        }
-
-
