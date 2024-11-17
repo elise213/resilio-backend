@@ -2,11 +2,29 @@
 This module takes care of starting the API Server, Loading the DB and Adding the endpoints
 """
 
-from flask import Flask, jsonify, request, app, jsonify, request, Response, request, request, jsonify, url_for, Blueprint
+from flask import (
+    Flask,
+    jsonify,
+    request,
+    app,
+    jsonify,
+    request,
+    Response,
+    request,
+    request,
+    jsonify,
+    url_for,
+    Blueprint,
+)
 from flask_cors import cross_origin
-from src.models import db, User, Resource, Comment, Favorites,  Schedule, CommentLike
+from src.models import db, User, Resource, Comment, Favorites, Schedule, CommentLike
 from src.utils import generate_sitemap, APIException
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required, JWTManager
+from flask_jwt_extended import (
+    create_access_token,
+    get_jwt_identity,
+    jwt_required,
+    JWTManager,
+)
 from werkzeug.security import generate_password_hash, check_password_hash
 import datetime
 from urllib.parse import unquote
@@ -14,11 +32,17 @@ from sqlalchemy import or_, cast, Float, and_, not_
 import logging
 import boto3
 import os
+from src.send_email import send_email
+from datetime import timedelta
 
-api = Blueprint('api', __name__)
+api = Blueprint("api", __name__)
 
-s3 = boto3.client("s3", aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"), aws_secret_access_key=os.environ.get(
-    "AWS_SECRET_ACCESS_KEY"), region_name="us-east-2")
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+    region_name="us-east-2",
+)
 
 
 @api.route("/login", methods=["POST"])
@@ -45,25 +69,31 @@ def create_token():
         #     logging.info(f"Favorite: {favorite}")
         # Ensure 'resourceId' key exists
         if "resourceId" in favorite:
-            resource = Resource.query.filter_by(
-                id=favorite["resourceId"]).first()
+            resource = Resource.query.filter_by(id=favorite["resourceId"]).first()
         else:
             logging.error("Favorite does not contain 'resourceId'")
             logging.info(f"User: {user}")
 
     expiration = datetime.timedelta(days=3)
-    access_token = create_access_token(
-        identity=user.id, expires_delta=expiration)
+    access_token = create_access_token(identity=user.id, expires_delta=expiration)
 
-    return jsonify(access_token=access_token, user_id=user.id, is_org=user.is_org, avatar=user.avatar, name=user.name, favorites=favorites)
+    return jsonify(
+        access_token=access_token,
+        user_id=user.id,
+        is_org=user.is_org,
+        avatar=user.avatar,
+        name=user.name,
+        favorites=favorites,
+    )
+
 
 # create user
 @api.route("/createUser", methods=["POST"])
 def create_user():
     if request.method == "POST":
         request_body = request.get_json()
-        if not request_body['is_org']:
-            return jsonify({"message": 'Must enter yes or no'})
+        if not request_body["is_org"]:
+            return jsonify({"message": "Must enter yes or no"})
         if not request_body["name"]:
             return jsonify({"message": "Name is required"}), 400
         if not request_body["email"]:
@@ -74,11 +104,11 @@ def create_user():
         if user:
             return jsonify({"message": "email already exists"}), 400
         user = User(
-            is_org=request_body['is_org'],
+            is_org=request_body["is_org"],
             name=request_body["name"],
             email=request_body["email"],
             password=generate_password_hash(request_body["password"]),
-            avatar=request_body['userAvatar']
+            avatar=request_body["userAvatar"],
         )
         db.session.add(user)
         db.session.commit()
@@ -91,10 +121,9 @@ def update_profile():
     data = request.get_json()
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
-    
+
     if not user:
         return jsonify({"error": "User not found"}), 404
-    
     if "name" in data:
         user.name = data["name"]
     if "city" in data:
@@ -102,6 +131,7 @@ def update_profile():
 
     db.session.commit()
     return jsonify(user.serialize()), 200
+
 
 @api.route("/change-password", methods=["POST"])
 @jwt_required()
@@ -117,23 +147,106 @@ def change_password():
         return jsonify({"error": "Password is required"}), 400
 
     new_password = data["password"]
-    
+
     # Assuming you have a method to hash passwords
     user.password = generate_password_hash(new_password)
-    
+
     db.session.commit()
     return jsonify({"message": "Password updated successfully"}), 200
 
+
+@api.route("/forgot-password", methods=["POST"])
+def send_email_route():
+    data = request.get_json()
+    recipient_email = data.get("recipient_email")
+    subject = "Password Recovery"
+    url = f"https://www.lifeisaword.org/reset-password?token={create_access_token(identity=recipient_email, expires_delta=timedelta(minutes=30))}"
+    body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    background-color: #f4f4f4;
+                    margin: 0;
+                    padding: 0;
+                }}
+                .email-container {{
+                    max-width: 600px;
+                    margin: auto;
+                    background-color: #ffffff;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                }}
+                .header {{
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 10px 20px;
+                    text-align: center;
+                    border-top-left-radius: 8px;
+                    border-top-right-radius: 8px;
+                }}
+                .content {{
+                    padding: 20px;
+                    line-height: 1.6;
+                }}
+                .button {{
+                    display: inline-block;
+                    padding: 10px 20px;
+                    margin: 20px 0;
+                    font-size: 16px;
+                    color: #ffffff;
+                    background-color: #4CAF50;
+                    text-decoration: none;
+                    border-radius: 5px;
+                }}
+                .footer {{
+                    text-align: center;
+                    padding: 10px;
+                    font-size: 12px;
+                    color: #777777;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class='email-container'>
+                <div class='header'>
+                    <h1>Welcome to Our Service!</h1>
+                </div>
+                <div class='content'>
+                    <p>Hello,</p>
+                    <p>Thank you for joining our service. We are excited to have you on board. To get started, please reset your password using the link below:</p>
+                    <p><a href='{url}' class='button'>Reset Password</a></p>
+                    <p>If you have any questions, feel free to reach out to our support team.</p>
+                    <p>Best regards,<br>The Team</p>
+                    <p><a href='https://www.lifeisaword.org' class='button'>Visit LifeIsAWord.org</a></p>
+                </div>
+                <div class='footer'>
+                    <p>&copy; 2024 Our Service. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+"""
+    result = send_email(recipient_email, subject, body)
+    return jsonify({"message": result})
+
+
 # __________________________________________________COMMENTS
+
 
 # Endpoint to like a comment
 @api.route("/likeComment/<int:comment_id>", methods=["POST"])
 @jwt_required()
 def like_comment(comment_id):
     user_id = get_jwt_identity()
-    
+
     # Check if the like already exists
-    existing_like = CommentLike.query.filter_by(user_id=user_id, comment_id=comment_id).first()
+    existing_like = CommentLike.query.filter_by(
+        user_id=user_id, comment_id=comment_id
+    ).first()
     if existing_like:
         return jsonify({"message": "Comment already liked"}), 409
 
@@ -143,12 +256,13 @@ def like_comment(comment_id):
     db.session.commit()
     return jsonify({"message": "Comment liked"}), 201
 
+
 # Endpoint to unlike a comment
 @api.route("/unlikeComment/<int:comment_id>", methods=["DELETE"])
 @jwt_required()
 def unlike_comment(comment_id):
     user_id = get_jwt_identity()
-    
+
     # Find the like record
     like = CommentLike.query.filter_by(user_id=user_id, comment_id=comment_id).first()
     if not like:
@@ -159,6 +273,7 @@ def unlike_comment(comment_id):
     db.session.commit()
     return jsonify({"message": "Comment unliked"}), 200
 
+
 # Endpoint to get the like count for a comment
 @api.route("/getCommentLikes/<int:comment_id>", methods=["GET"])
 def get_comment_likes(comment_id):
@@ -167,7 +282,7 @@ def get_comment_likes(comment_id):
 
 
 # Create comment
-@api.route('/createComment', methods=['POST'])
+@api.route("/createComment", methods=["POST"])
 @jwt_required()
 def create_comment():
     user_id = get_jwt_identity()
@@ -183,7 +298,8 @@ def create_comment():
     db.session.commit()
     return jsonify({"created": "Thank you for your feedback", "status": "true"}), 200
 
-@api.route('/deleteComment/<int:comment_id>', methods=['DELETE'])
+
+@api.route("/deleteComment/<int:comment_id>", methods=["DELETE"])
 @jwt_required()
 def delete_comment(comment_id):
     user_id = get_jwt_identity()
@@ -201,7 +317,7 @@ def delete_comment(comment_id):
 
 
 # get comments
-@api.route('/getcomments/<int:resource_id>', methods=['GET'])
+@api.route("/getcomments/<int:resource_id>", methods=["GET"])
 def getcomments(resource_id):
     print(resource_id)
     comments = getCommentsByResourceId(resource_id)
@@ -213,7 +329,8 @@ def getCommentsByResourceId(resourceId):
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
 
-@api.route('/createCommentAndRating', methods=['POST'])
+
+@api.route("/createCommentAndRating", methods=["POST"])
 @jwt_required()
 def create_comment_and_rating():
     user_id = get_jwt_identity()
@@ -224,7 +341,10 @@ def create_comment_and_rating():
 
     # Validation
     if not comment_content:
-        return jsonify({"message": "Comment content is required", "status": "false"}), 400
+        return (
+            jsonify({"message": "Comment content is required", "status": "false"}),
+            400,
+        )
     if not rating_value:
         return jsonify({"message": "Rating value is required", "status": "false"}), 400
     try:
@@ -232,17 +352,28 @@ def create_comment_and_rating():
         if not (1 <= rating_value <= 5):
             raise ValueError
     except ValueError:
-        return jsonify({"message": "Rating value must be an integer between 1 and 5", "status": "false"}), 400
+        return (
+            jsonify(
+                {
+                    "message": "Rating value must be an integer between 1 and 5",
+                    "status": "false",
+                }
+            ),
+            400,
+        )
     new_comment = Comment(
-        user_id=user_id, resource_id=resource_id, comment_cont=comment_content, rating_value=rating_value)
+        user_id=user_id,
+        resource_id=resource_id,
+        comment_cont=comment_content,
+        rating_value=rating_value,
+    )
     db.session.add(new_comment)
     db.session.commit()
 
     return jsonify({"message": "Thank you for your feedback", "status": "true"}), 200
 
 
-
-@api.route('/rating', methods=['GET'])
+@api.route("/rating", methods=["GET"])
 def get_rating():
     resource_id = request.args.get("resource")
     average, count = getRatingsByResourceId(resource_id)
@@ -253,7 +384,11 @@ def get_rating():
 
 def getRatingsByResourceId(resource_id):
     try:
-        comments = Comment.query.filter_by(resource_id=resource_id).filter(Comment.rating_value.isnot(None)).all()
+        comments = (
+            Comment.query.filter_by(resource_id=resource_id)
+            .filter(Comment.rating_value.isnot(None))
+            .all()
+        )
         count = len(comments)
         if count == 0:
             return None, 0
@@ -266,18 +401,19 @@ def getRatingsByResourceId(resource_id):
         return None, 0
 
 
-
-@api.route('/comments-ratings/user/<int:user_id>', methods=['GET'])
+@api.route("/comments-ratings/user/<int:user_id>", methods=["GET"])
 def get_comments_ratings_by_user(user_id):
     comments = getCommentsByUserId(user_id)
     return jsonify({"comments": comments})
+
 
 def getCommentsByUserId(user_id):
     comments = Comment.query.filter_by(user_id=user_id).all()
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
 
-@api.route('/user/<int:user_id>', methods=['GET'])
+
+@api.route("/user/<int:user_id>", methods=["GET"])
 def get_user_info(user_id):
     user = User.query.get(user_id)
     if user is None:
@@ -287,8 +423,9 @@ def get_user_info(user_id):
 
 # __________________________________________________RESOURCES
 
+
 # GETBRESULTS
-@api.route('/getBResults', methods=['POST'])
+@api.route("/getBResults", methods=["POST"])
 def getBResults():
 
     body = request.get_json()
@@ -309,17 +446,18 @@ def getBResults():
             cast(Resource.latitude, Float) <= neLat,
             cast(Resource.latitude, Float) >= swLat,
             cast(Resource.longitude, Float) <= neLng,
-            cast(Resource.longitude, Float) >= swLng
+            cast(Resource.longitude, Float) >= swLng,
         )
     ).all()
-    categories_to_keep = [category for category,
-                          value in body["resources"].items() if value]
+    categories_to_keep = [
+        category for category, value in body["resources"].items() if value
+    ]
+
     def resource_category_matches(categories_to_check):
         if not categories_to_keep:
             return True
         if isinstance(categories_to_check, str):
-            categories = [cat.strip()
-                          for cat in categories_to_check.split(',')]
+            categories = [cat.strip() for cat in categories_to_check.split(",")]
             return any(cat in categories_to_keep for cat in categories)
         return False
 
@@ -333,7 +471,8 @@ def getBResults():
         if days_to_keep:
             if r.schedule:
                 schedule_matched = any(
-                    getattr(r.schedule, day + "Start", None) not in (None, "") for day in days_to_keep
+                    getattr(r.schedule, day + "Start", None) not in (None, "")
+                    for day in days_to_keep
                 )
             else:
                 schedule_matched = False
@@ -365,7 +504,7 @@ def create_resource():
         category=request_body["category"],
         website=request_body["website"],
         description=request_body["description"],
-        latitude=float(request_body["latitude"]), 
+        latitude=float(request_body["latitude"]),
         longitude=float(request_body["longitude"]),
         image=request_body["image"],
         image2=request_body["image2"],
@@ -388,11 +527,12 @@ def create_resource():
         saturdayStart=days["saturday"]["start"],
         saturdayEnd=days["saturday"]["end"],
         sundayStart=days["sunday"]["start"],
-        sundayEnd=days["sunday"]["end"]
+        sundayEnd=days["sunday"]["end"],
     )
     db.session.add(schedule)
     db.session.commit()
     return jsonify({"status": "success"}), 200
+
 
 # EDIT RESOURCE
 @api.route("/editResource/<int:resource_id>", methods=["PUT"])
@@ -423,28 +563,53 @@ def edit_resource(resource_id):
 
         db.session.commit()
 
-        # Handle schedule update
+        # schedule update
         days = request_body.get("days", {})
         schedule = Schedule.query.filter_by(resource_id=resource.id).first()
 
         if schedule:
-            schedule.mondayStart = days.get("monday", {}).get("start", schedule.mondayStart)
+            schedule.mondayStart = days.get("monday", {}).get(
+                "start", schedule.mondayStart
+            )
             schedule.mondayEnd = days.get("monday", {}).get("end", schedule.mondayEnd)
-            schedule.tuesdayStart = days.get("tuesday", {}).get("start", schedule.tuesdayStart)
-            schedule.tuesdayEnd = days.get("tuesday", {}).get("end", schedule.tuesdayEnd)
-            schedule.wednesdayStart = days.get("wednesday", {}).get("start", schedule.wednesdayStart)
-            schedule.wednesdayEnd = days.get("wednesday", {}).get("end", schedule.wednesdayEnd)
-            schedule.thursdayStart = days.get("thursday", {}).get("start", schedule.thursdayStart)
-            schedule.thursdayEnd = days.get("thursday", {}).get("end", schedule.thursdayEnd)
-            schedule.fridayStart = days.get("friday", {}).get("start", schedule.fridayStart)
+            schedule.tuesdayStart = days.get("tuesday", {}).get(
+                "start", schedule.tuesdayStart
+            )
+            schedule.tuesdayEnd = days.get("tuesday", {}).get(
+                "end", schedule.tuesdayEnd
+            )
+            schedule.wednesdayStart = days.get("wednesday", {}).get(
+                "start", schedule.wednesdayStart
+            )
+            schedule.wednesdayEnd = days.get("wednesday", {}).get(
+                "end", schedule.wednesdayEnd
+            )
+            schedule.thursdayStart = days.get("thursday", {}).get(
+                "start", schedule.thursdayStart
+            )
+            schedule.thursdayEnd = days.get("thursday", {}).get(
+                "end", schedule.thursdayEnd
+            )
+            schedule.fridayStart = days.get("friday", {}).get(
+                "start", schedule.fridayStart
+            )
             schedule.fridayEnd = days.get("friday", {}).get("end", schedule.fridayEnd)
-            schedule.saturdayStart = days.get("saturday", {}).get("start", schedule.saturdayStart)
-            schedule.saturdayEnd = days.get("saturday", {}).get("end", schedule.saturdayEnd)
-            schedule.sundayStart = days.get("sunday", {}).get("start", schedule.sundayStart)
+            schedule.saturdayStart = days.get("saturday", {}).get(
+                "start", schedule.saturdayStart
+            )
+            schedule.saturdayEnd = days.get("saturday", {}).get(
+                "end", schedule.saturdayEnd
+            )
+            schedule.sundayStart = days.get("sunday", {}).get(
+                "start", schedule.sundayStart
+            )
             schedule.sundayEnd = days.get("sunday", {}).get("end", schedule.sundayEnd)
             db.session.commit()
 
-            return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
+            return (
+                jsonify({"message": "Resource edited successfully!", "status": "true"}),
+                200,
+            )
         else:
             # If schedule not found, create a new one
             newSchedule = Schedule(
@@ -466,9 +631,18 @@ def edit_resource(resource_id):
             )
             db.session.add(newSchedule)
             db.session.commit()
-            return jsonify({"message": "Resource edited but Schedule not found", "status": "true"}), 200
+            return (
+                jsonify(
+                    {
+                        "message": "Resource edited but Schedule not found",
+                        "status": "true",
+                    }
+                ),
+                200,
+            )
     else:
         return jsonify({"message": "Resource not found"}), 404
+
 
 # GET RESOURCE
 @api.route("/getResource/<int:resource_id>", methods=["GET"])
@@ -492,23 +666,48 @@ def delete_resource(resource_id):
             if resource:
                 # Delete related entries in Favorites
                 Favorites.query.filter_by(resourceId=resource_id).delete()
-                
+
                 # Commit the deletion of Favorites before deleting Resource
                 db.session.flush()  # Flush to ensure integrity before main deletion
 
                 # Now delete the resource itself
                 db.session.delete(resource)
                 db.session.commit()
-                return jsonify({"message": "Resource deleted successfully", "status": "true"}), 200
+                return (
+                    jsonify(
+                        {"message": "Resource deleted successfully", "status": "true"}
+                    ),
+                    200,
+                )
             else:
-                return jsonify({"message": "Resource not found", "status": "false"}), 404
+                return (
+                    jsonify({"message": "Resource not found", "status": "false"}),
+                    404,
+                )
         else:
-            return jsonify({"message": "Unauthorized: User does not have permission to delete resources", "status": "false"}), 403
+            return (
+                jsonify(
+                    {
+                        "message": "Unauthorized: User does not have permission to delete resources",
+                        "status": "false",
+                    }
+                ),
+                403,
+            )
     except Exception as e:
         db.session.rollback()  # Roll back in case of error
         print("Error deleting resource:", e)  # Print error to logs
-        return jsonify({"message": "An error occurred while deleting the resource", "status": "false"}), 500
-    
+        return (
+            jsonify(
+                {
+                    "message": "An error occurred while deleting the resource",
+                    "status": "false",
+                }
+            ),
+            500,
+        )
+
+
 # DELETE RESOURCE
 # @api.route("/deleteResource/<int:resource_id>", methods=["DELETE"])
 # @jwt_required()
@@ -528,6 +727,7 @@ def delete_resource(resource_id):
 #     else:
 #         return jsonify({"message": "Unauthorized: User does not have permission to delete resources", "status": "false"}), 403
 
+
 @api.route("/getAllResources", methods=["GET"])
 def get_all_resources():
     logging.info("Getting all resources")
@@ -536,7 +736,7 @@ def get_all_resources():
     resources = Resource.query.all()
 
     if not resources:
-        print("No resources found") 
+        print("No resources found")
         return jsonify({"message": "No resources found"}), 404
 
     resources_list = []
@@ -548,11 +748,20 @@ def get_all_resources():
             days = {
                 "monday": {"start": schedule.mondayStart, "end": schedule.mondayEnd},
                 "tuesday": {"start": schedule.tuesdayStart, "end": schedule.tuesdayEnd},
-                "wednesday": {"start": schedule.wednesdayStart, "end": schedule.wednesdayEnd},
-                "thursday": {"start": schedule.thursdayStart, "end": schedule.thursdayEnd},
+                "wednesday": {
+                    "start": schedule.wednesdayStart,
+                    "end": schedule.wednesdayEnd,
+                },
+                "thursday": {
+                    "start": schedule.thursdayStart,
+                    "end": schedule.thursdayEnd,
+                },
                 "friday": {"start": schedule.fridayStart, "end": schedule.fridayEnd},
-                "saturday": {"start": schedule.saturdayStart, "end": schedule.saturdayEnd},
-                "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd}
+                "saturday": {
+                    "start": schedule.saturdayStart,
+                    "end": schedule.saturdayEnd,
+                },
+                "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd},
             }
         else:
             days = {}
@@ -567,26 +776,26 @@ def get_all_resources():
             "image2": resource.image2,
             "schedule": getScheduleForResource(resource.id),
             "latitude": resource.latitude,
-            "longitude": resource.longitude
+            "longitude": resource.longitude,
         }
         resources_list.append(resource_data)
     print(f"Returning JSON response with {len(resources_list)} resources")
     return jsonify(resources=resources_list), 200
-    
 
-@api.route('/addFavorite', methods=['POST'])
+
+@api.route("/addFavorite", methods=["POST"])
 @jwt_required()
 def addFavorite():
     userId = get_jwt_identity()
     request_body = request.get_json()
     print(f"Incoming request body: {request_body}")  # Log incoming request data
-    
+
     # Check if request body and 'resourceId' are valid
-    if not request_body or 'resourceId' not in request_body:
+    if not request_body or "resourceId" not in request_body:
         print("Error: Resource ID is missing from the request body")
         return jsonify({"message": "Resource ID is required"}), 400
 
-    resourceId = request_body['resourceId']
+    resourceId = request_body["resourceId"]
     print(f"User ID: {userId}, Resource ID: {resourceId}")
 
     # Check if resource exists
@@ -596,15 +805,16 @@ def addFavorite():
         return jsonify({"message": "Resource not found"}), 404
 
     # Check if favorite already exists
-    fav_exists = Favorites.query.filter_by(
-        userId=userId, resourceId=resourceId).first()
+    fav_exists = Favorites.query.filter_by(userId=userId, resourceId=resourceId).first()
     if fav_exists:
         print("Error: Favorite already exists")
         return jsonify({"message": "Favorite already exists"}), 409
 
     try:
         new_favorite = Favorites(userId=userId, resourceId=resourceId)
-        print(f"Before committing: UserId={new_favorite.userId}, ResourceId={new_favorite.resourceId}")
+        print(
+            f"Before committing: UserId={new_favorite.userId}, ResourceId={new_favorite.resourceId}"
+        )
         db.session.add(new_favorite)
         db.session.commit()
         print("Favorite added successfully")
@@ -615,14 +825,14 @@ def addFavorite():
         return jsonify({"message": "Failed to add favorite due to an error."}), 500
 
 
-@api.route('/debug/favorites', methods=['GET'])
+@api.route("/debug/favorites", methods=["GET"])
 def debug_favorites():
     favorites = Favorites.query.all()
     favorites_list = [favorite.serialize() for favorite in favorites]
     return jsonify(favorites_list), 200
 
 
-@api.route('/removeFavorite', methods=['DELETE'])
+@api.route("/removeFavorite", methods=["DELETE"])
 @jwt_required()
 def removeFavorite():
     userId = get_jwt_identity()
@@ -635,7 +845,7 @@ def removeFavorite():
     return jsonify(message="okay")
 
 
-@api.route('/getFavorites', methods=['GET'])
+@api.route("/getFavorites", methods=["GET"])
 @jwt_required()
 def getFavorites():
     userId = get_jwt_identity()
@@ -644,30 +854,34 @@ def getFavorites():
 
 
 def getFavoritesByUserId(user_id):
-    favorites = (db.session.query(Favorites, Resource)
-                 .join(Resource, Resource.id == Favorites.resourceId)
-                 .filter(Favorites.userId == user_id)
-                 .all())
+    favorites = (
+        db.session.query(Favorites, Resource)
+        .join(Resource, Resource.id == Favorites.resourceId)
+        .filter(Favorites.userId == user_id)
+        .all()
+    )
 
     serialized_favorites = []
     for favorite, resource in favorites:
         favorite_data = favorite.serialize()
         # Add additional resource details to favorite_data
-        favorite_data.update({
-            'resource': {
-                "id": resource.id,
-                "name": resource.name,
-                "address": resource.address,
-                "website": resource.website,
-                "description": resource.description,
-                "category": resource.category,
-                "image": resource.image,
-                "image2": resource.image2,
-                "latitude": resource.latitude,
-                "longitude": resource.longitude,
-                "schedule": getScheduleForResource(resource.id)  
+        favorite_data.update(
+            {
+                "resource": {
+                    "id": resource.id,
+                    "name": resource.name,
+                    "address": resource.address,
+                    "website": resource.website,
+                    "description": resource.description,
+                    "category": resource.category,
+                    "image": resource.image,
+                    "image2": resource.image2,
+                    "latitude": resource.latitude,
+                    "longitude": resource.longitude,
+                    "schedule": getScheduleForResource(resource.id),
+                }
             }
-        })
+        )
 
         serialized_favorites.append(favorite_data)
 
@@ -680,16 +894,20 @@ def getScheduleForResource(resource_id):
         return {
             "monday": {"start": schedule.mondayStart, "end": schedule.mondayEnd},
             "tuesday": {"start": schedule.tuesdayStart, "end": schedule.tuesdayEnd},
-            "wednesday": {"start": schedule.wednesdayStart, "end": schedule.wednesdayEnd},
+            "wednesday": {
+                "start": schedule.wednesdayStart,
+                "end": schedule.wednesdayEnd,
+            },
             "thursday": {"start": schedule.thursdayStart, "end": schedule.thursdayEnd},
             "friday": {"start": schedule.fridayStart, "end": schedule.fridayEnd},
             "saturday": {"start": schedule.saturdayStart, "end": schedule.saturdayEnd},
-            "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd}
+            "sunday": {"start": schedule.sundayStart, "end": schedule.sundayEnd},
         }
     else:
-        return {} 
+        return {}
 
-@api.route('/getSchedules', methods=['GET'])
+
+@api.route("/getSchedules", methods=["GET"])
 def getSchedules():
     schedules = Schedule.query.all()
     serialized_schedule = [sch.serialize() for sch in schedules]
