@@ -57,7 +57,8 @@ class Comment(db.Model):
     def serialize(self):
         user = User.query.get(self.user_id)
         resource = Resource.query.get(self.resource_id)
-        like_count = self.comment_likes.count()  # Correctly count comment likes
+        like_count = self.comment_likes.count() 
+        likes = [{"user_id": like.user_id} for like in self.comment_likes]  # Include list of likes
         return {
             "comment_id": self.id,
             "user_id": self.user_id,
@@ -68,6 +69,7 @@ class Comment(db.Model):
             "rating_value": self.rating_value,
             "created_at": self.created_at,
             "like_count": like_count,
+             "likes": likes,
         }
 
 class CommentLike(db.Model):
