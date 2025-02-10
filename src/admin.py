@@ -21,7 +21,8 @@ class ResourceModelView(ModelView):
         "logo",
         "user_id",
         "comment",
-        "schedule"
+        "schedule",
+        "alert",
     )
 
 

@@ -605,15 +605,6 @@ def get_rating():
         "count": count
     }), 200
 
-# @api.route("/rating", methods=["GET"])
-# def get_rating():
-#     resource_id = request.args.get("resource")
-#     average, count = getRatingsByResourceId(resource_id)
-#     if count == 0:
-#         return jsonify({"rating": "No ratings yet", "count": 0}), 200
-#     return jsonify({"rating": average, "count": count}), 200
-
-
 def getRatingsByResourceId(resource_id):
     try:
         comments = (
@@ -726,6 +717,8 @@ def getBResults():
         category for category, value in body["resources"].items() if value
     ]
 
+    print(f"🔎 Found {len(mapList)} resources in database before filtering")
+
     def resource_category_matches(categories_to_check):
         if not categories_to_keep:
             return True
@@ -737,10 +730,16 @@ def getBResults():
     days_to_keep = body.get("days", {})
     days_to_keep = [day for day, value in days_to_keep.items() if value]
 
+
     filtered_resources = set()
 
     for r in mapList:
+        print(f"🔍 Checking resource {r.id} - Categories: {r.category} - Schedule: {r.schedule}")
         category_matched = resource_category_matches(r.category)
+        if not category_matched:
+            print(f"Resource {r.id} removed due to category mismatch")
+        
+
         if days_to_keep:
             if r.schedule:
                 schedule_matched = any(
@@ -752,10 +751,49 @@ def getBResults():
         else:
             schedule_matched = True
 
+        if not schedule_matched:
+             print(f"Resource {r.id} removed due to schedule mismatch")
+
         if category_matched and schedule_matched:
             filtered_resources.add(r)
 
     new_resources = [r.serialize() for r in filtered_resources]
+    print("Total matching resources:", len(filtered_resources))
+    return jsonify(data=new_resources)
+
+
+# GET UNFILTERED RESULTS (No Day or Category Filtering)
+@api.route("/getUnfilteredBResults", methods=["POST"])
+def getUnfilteredBResults():
+    body = request.get_json()
+
+    required_keys = ["neLat", "neLng", "swLat", "swLng"]
+    if not all(key in body for key in required_keys):
+        return jsonify(error="Missing required parameters in the request body"), 400
+
+    neLat = float(body["neLat"])
+    neLng = float(body["neLng"])
+    swLat = float(body["swLat"])
+    swLng = float(body["swLng"])
+
+    # Fetch all resources in the bounding box
+    mapList = Resource.query.filter(
+        and_(
+            not_(Resource.latitude == None),
+            not_(Resource.longitude == None),
+            cast(Resource.latitude, Float) <= neLat,
+            cast(Resource.latitude, Float) >= swLat,
+            cast(Resource.longitude, Float) <= neLng,
+            cast(Resource.longitude, Float) >= swLng,
+        )
+    ).all()
+
+    print(f"🔎 Found {len(mapList)} resources in database (no filtering applied)")
+
+    # Serialize all results without filtering
+    new_resources = [r.serialize() for r in mapList]
+
+    print("Returning unfiltered resources:", len(new_resources))
     return jsonify(data=new_resources)
 
 
