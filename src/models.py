@@ -166,43 +166,6 @@ class Resource(db.Model):
         }
 
 
-# class Favorites(db.Model):
-#     __tablename__ = 'Favorites'
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String, nullable=True)
-#     userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
-#     resource = db.relationship('Resource', backref='Favorites', lazy=True)
-#     resourceId = db.Column(db.Integer, db.ForeignKey(
-#         'Resource.id'), nullable=False)
-
-#     def __repr__(self):
-#         return f'<Favorites {self.id}>'
-
-#     def serialize(self):
-#         return {
-#             "id": self.id,
-#             "userId": self.userId,
-#             "resourceId": self.resource.id,
-#             "name": self.resource.name if self.resource else None,
-#             "image": self.resource.image if self.resource else None,
-#             "category": self.resource.category if self.resource else None,
-#             "description": self.resource.description if self.resource else None,
-#         }
-# class Favorites(db.Model):
-#     __tablename__ = 'Favorites'
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String, nullable=True)
-#     userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
-#     resource = db.relationship('Resource', backref='Favorites', lazy=True)
-#     resourceId = db.Column(db.Integer, db.ForeignKey('Resource.id'), nullable=False)
-
-#     def __repr__(self):
-#         return f'<Favorites {self.id}>'
-
-#     def serialize(self):
-#         """Convert object fields to JSON serializable format."""
-#         return {
-
 class Favorites(db.Model):
     __tablename__ = 'Favorites'
     id = db.Column(db.Integer, primary_key=True)
@@ -219,8 +182,8 @@ class Favorites(db.Model):
         def force_str(value):
             """Ensure values are strings if they are bytes."""
             if isinstance(value, bytes):
-                return value.decode("utf-8", errors="ignore")  # Decode safely
-            return value  # Return original value if not bytes
+                return value.decode("utf-8", errors="ignore")  
+            return value 
 
         return {
             "id": self.id,

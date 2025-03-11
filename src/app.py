@@ -7,14 +7,12 @@ from flask_swagger import swagger
 from dotenv import load_dotenv
 from src.utils import APIException, generate_sitemap
 from src.admin import setup_admin
-from src.models import db, User
-from src.extensions import mail  # Import from extensions now
+from src.models import db
+from src.extensions import mail 
 from src.routes import api
 from src.auth import basic_auth
 from src.commands import setup_commands
-# from flask_mail import Mail
 
-# Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
@@ -35,8 +33,7 @@ if not app.config["JWT_SECRET_KEY"]:
     raise ValueError("SECRET_KEY is not set. Check your .env file!")
 
 jwt = JWTManager(app)
-
-print(f" Loaded SECRET_KEY: {app.config['SECRET_KEY']}")  # Debugging
+ 
 
 app.url_map.strict_slashes = False
 app.register_blueprint(api, url_prefix="/api")

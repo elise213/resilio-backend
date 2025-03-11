@@ -1,27 +1,21 @@
 
-from flask import Flask, jsonify, request, Response, url_for, Blueprint
-from flask_cors import cross_origin
+from flask import jsonify, request, Blueprint
 from flask_jwt_extended import (
     create_access_token,
     get_jwt_identity,
     jwt_required,
-    JWTManager,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
-from urllib.parse import unquote
-from sqlalchemy import or_, cast, Float, and_, not_
+from sqlalchemy import cast, Float, and_, not_
 from datetime import timedelta
-import datetime
 import logging
 import boto3
 import os
 from flask_mail import Message
-
-
 from src.models import db, User, Resource, Comment, Favorites, Schedule, CommentLike
-from src.utils import generate_sitemap, APIException
 from src.send_email import send_email
 from src.app import mail
+from flask_mail import Message
 
 api = Blueprint("api", __name__)
 
@@ -51,162 +45,23 @@ def create_token():
     if not check_password_hash(user.password, password):
         return jsonify({"message": "Password is incorrect"}), 401
 
-    is_org_value = int(user.is_org)  # Ensure int
-    avatar = user.avatar
+    is_org_value = int(user.is_org) 
     favorites = getFavoritesByUserId(user.id)
 
-    # 🔹 Convert `bytes` to `str` in any JSON object (recursive)
-    def force_str(obj):
-        """Recursively convert bytes to strings in any JSON object."""
-        if isinstance(obj, bytes):
-            return obj.decode("utf-8", errors="ignore")  # Decode bytes safely
-        elif isinstance(obj, dict):
-            return {k: force_str(v) for k, v in obj.items()}  # Process dict
-        elif isinstance(obj, list):
-            return [force_str(v) for v in obj]  # Process list
-        elif isinstance(obj, tuple):
-            return tuple(force_str(v) for v in obj)  # Process tuple
-        else:
-            return obj  # Return as is if not bytes
-
-
-    # 🔹 Debugging: Check for bytes inside favorites
-    print(f"🔥 Favorites (Before Fixing): {favorites}")
-
-    # 🔹 Fix avatar if it's bytes
-    if isinstance(avatar, bytes):
-        print("Fixing avatar: Converting bytes to string.")
-        avatar = avatar.decode("utf-8")
-
-    # 🔹 Fix entire favorites object recursively
-    favorites = force_str(favorites)  # ✅ Ensures JSON serialization
-
-    # 🔹 Debugging: Show cleaned favorites
-    print(f"✅ Favorites (After Fixing): {favorites}")
-
     expiration = timedelta(days=3)
-    access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
+    access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration).decode("utf-8")
 
-    return jsonify(
-        access_token=access_token,
-        user_id=user.id,
-        is_org=is_org_value,
-        avatar=avatar,
-        name=user.name,
-        favorites=favorites,  # ✅ Now fully JSON-safe
-    )
+    response_data = {
+        "access_token": access_token,
+        "user_id": user.id,
+        "is_org": is_org_value,
+        "name": user.name,
+        "favorites": favorites, 
+    }
+    return jsonify(response_data)
 
 
 
-# @api.route("/login", methods=["POST"])
-# def create_token():
-#     logging.info("Inside create_token")
-    
-#     email = request.json.get("email")
-#     password = request.json.get("password")
-
-#     if not email:
-#         return jsonify({"message": "Email is required"}), 400
-#     if not password:
-#         return jsonify({"message": "Password is required"}), 400
-
-#     user = User.query.filter_by(email=email).first()
-
-#     if not user:
-#         return jsonify({"message": "Email is incorrect"}), 401
-#     if not check_password_hash(user.password, password):
-#         return jsonify({"message": "Password is incorrect"}), 401
-
-#     is_org_value = 1 if str(user.is_org).lower() == "true" else 0
-
-#     favorites = getFavoritesByUserId(user.id)
-    
-#     expiration = timedelta(days=3)
-#     access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
-
-#     return jsonify(
-#         access_token=access_token,
-#         user_id=user.id,
-#         is_org=is_org_value, 
-#         avatar=user.avatar,
-#         name=user.name,
-#         favorites=favorites,
-#     )
-
-# def create_token():
-#     logging.info("Inside create_token")
-    
-#     email = request.json.get("email")
-#     password = request.json.get("password")
-
-#     if not email:
-#         return jsonify({"message": "Email is required"}), 400
-#     if not password:
-#         return jsonify({"message": "Password is required"}), 400
-
-#     user = User.query.filter_by(email=email).first()
-
-#     if not user:
-#         return jsonify({"message": "Email is incorrect"}), 401
-#     if not check_password_hash(user.password, password):
-#         return jsonify({"message": "Password is incorrect"}), 401
-
-#     favorites = getFavoritesByUserId(user.id)
-    
-#     expiration = timedelta(days=3)
-#     access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
-
-#     return jsonify(
-#         access_token=access_token,
-#         user_id=user.id,
-#         is_org=user.is_org,
-#         avatar=user.avatar,
-#         name=user.name,
-#         favorites=favorites,
-#     )
-
-# @api.route("/login", methods=["POST"])
-# def create_token():
-#     logging.info("Inside create_token")
-#     email = request.json.get("email", None)
-#     password = request.json.get("password", None)
-#     user = User.query.filter_by(email=email).first()
-#     if not email:
-#         logging.info(f"User: {user}")
-#         return jsonify({"message": "Email is required"}), 400
-#     if not password:
-#         logging.info(f"User: {user}")
-#         return jsonify({"message": "Password is required"}), 400
-#     if not user:
-#         logging.info(f"User: {user}")
-#         return jsonify({"message": "email is incorrect"}), 401
-#     if not check_password_hash(user.password, password):
-#         logging.info(f"User: {user}")
-#         return jsonify({"message": "password is incorrect"}), 401
-
-#     favorites = getFavoritesByUserId(user.id)
-#     for favorite in favorites:
-
-#         if "resourceId" in favorite:
-#             resource = Resource.query.filter_by(id=favorite["resourceId"]).first()
-#         else:
-#             logging.error("Favorite does not contain 'resourceId'")
-#             logging.info(f"User: {user}")
-
-#     expiration = datetime.timedelta(days=3)
-
-#     access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
-
-    # return jsonify(
-    #     access_token=access_token,
-    #     user_id=user.id,
-    #     is_org=user.is_org,
-    #     avatar=user.avatar,
-    #     name=user.name,
-    #     favorites=favorites,
-    # )
-
-from flask_mail import Message
 
 def send_org_verification_email(name, email):
     msg = Message(
@@ -1301,7 +1156,6 @@ def addFavorite():
     request_body = request.get_json()
     print(f"Incoming request body: {request_body}")  # Log incoming request data
 
-    # Check if request body and 'resourceId' are valid
     if not request_body or "resourceId" not in request_body:
         print("Error: Resource ID is missing from the request body")
         return jsonify({"message": "Resource ID is required"}), 400
@@ -1335,13 +1189,6 @@ def addFavorite():
         db.session.rollback()
         return jsonify({"message": "Failed to add favorite due to an error."}), 500
 
-
-
-@api.route("/debug/favorites", methods=["GET"])
-def debug_favorites():
-    favorites = Favorites.query.all()
-    favorites_list = [favorite.serialize() for favorite in favorites]
-    return jsonify(favorites_list), 200
 
 
 @api.route("/removeFavorite", methods=["DELETE"])
@@ -1444,17 +1291,18 @@ def getFavorites():
 
     return serialized_favorites
 
-def decode_bytes(obj, path="root"):
-    """Recursively convert bytes to strings in any JSON object and print offending fields."""
+def has_bytes(obj, path="root"):
+    """Recursively check if an object contains bytes."""
     if isinstance(obj, bytes):
         print(f"🚨 Found bytes at {path}: {obj}")
-        return obj.decode("utf-8", errors="ignore")  # Safely decode
+        return True
     elif isinstance(obj, dict):
-        return {k: decode_bytes(v, f"{path}.{k}") for k, v in obj.items()}  # Process dict recursively
+        return any(has_bytes(v, f"{path}.{k}") for k, v in obj.items())
     elif isinstance(obj, list):
-        return [decode_bytes(v, f"{path}[{i}]") for i, v in enumerate(obj)]  # Process list recursively
-    else:
-        return obj
+        return any(has_bytes(v, f"{path}[{i}]") for i, v in enumerate(obj))
+    elif isinstance(obj, tuple):
+        return any(has_bytes(v, f"{path}[{i}]") for i, v in enumerate(obj))
+    return False
 
 
 
