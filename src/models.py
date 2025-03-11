@@ -15,31 +15,59 @@ from sqlalchemy.orm import relationship
 
 db = SQLAlchemy()
 
+# class User(db.Model):
+#     __tablename__ = "User"
+#     id = db.Column(db.Integer, primary_key=True)
+#     name = db.Column(db.String(256))
+#     email = db.Column(db.String(256), unique=True, nullable=False)
+#     password = db.Column(db.String(256), nullable=False)
+#     is_org = db.Column(db.String(80), nullable=False)
+#     avatar = db.Column(db.String(80))
+#     picture = db.Column(db.String(80))
+#     city = db.Column(db.String(80), nullable=True)
+#     comment_likes = relationship("CommentLike", backref="user", lazy="dynamic")
+
+#     def __repr__(self):
+#         return f'<User {self.email}>'
+
+#     def serialize(self):
+#         return {
+#             "id": self.id,
+#             "name": self.name,
+#             "email": self.email,
+#             "is_org": self.is_org,
+#             "avatar": self.avatar,
+#             "picture": self.picture,
+#             "city": self.city
+#         }
+
 class User(db.Model):
     __tablename__ = "User"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(256))
     email = db.Column(db.String(256), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
-    is_org = db.Column(db.String(80), nullable=False)
+    is_org = db.Column(db.Integer, nullable=False, default=0)  # Convert to Integer
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
     city = db.Column(db.String(80), nullable=True)
-    comment_likes = relationship("CommentLike", backref="user", lazy="dynamic")
 
     def __repr__(self):
         return f'<User {self.email}>'
 
     def serialize(self):
+        # Ensure old "false"/"true" values are converted properly
+        is_org_value = 1 if str(self.is_org).lower() == "true" else 0
         return {
             "id": self.id,
             "name": self.name,
             "email": self.email,
-            "is_org": self.is_org,
+            "is_org": is_org_value,
             "avatar": self.avatar,
             "picture": self.picture,
             "city": self.city
         }
+
 
 class Comment(db.Model):
     __tablename__ = "Comment"
@@ -138,28 +166,80 @@ class Resource(db.Model):
         }
 
 
+# class Favorites(db.Model):
+#     __tablename__ = 'Favorites'
+#     id = db.Column(db.Integer, primary_key=True)
+#     name = db.Column(db.String, nullable=True)
+#     userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
+#     resource = db.relationship('Resource', backref='Favorites', lazy=True)
+#     resourceId = db.Column(db.Integer, db.ForeignKey(
+#         'Resource.id'), nullable=False)
+
+#     def __repr__(self):
+#         return f'<Favorites {self.id}>'
+
+#     def serialize(self):
+#         return {
+#             "id": self.id,
+#             "userId": self.userId,
+#             "resourceId": self.resource.id,
+#             "name": self.resource.name if self.resource else None,
+#             "image": self.resource.image if self.resource else None,
+#             "category": self.resource.category if self.resource else None,
+#             "description": self.resource.description if self.resource else None,
+#         }
+# class Favorites(db.Model):
+#     __tablename__ = 'Favorites'
+#     id = db.Column(db.Integer, primary_key=True)
+#     name = db.Column(db.String, nullable=True)
+#     userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
+#     resource = db.relationship('Resource', backref='Favorites', lazy=True)
+#     resourceId = db.Column(db.Integer, db.ForeignKey('Resource.id'), nullable=False)
+
+#     def __repr__(self):
+#         return f'<Favorites {self.id}>'
+
+#     def serialize(self):
+#         """Convert object fields to JSON serializable format."""
+#         return {
+
 class Favorites(db.Model):
     __tablename__ = 'Favorites'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=True)
     userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
     resource = db.relationship('Resource', backref='Favorites', lazy=True)
-    resourceId = db.Column(db.Integer, db.ForeignKey(
-        'Resource.id'), nullable=False)
+    resourceId = db.Column(db.Integer, db.ForeignKey('Resource.id'), nullable=False)
 
     def __repr__(self):
         return f'<Favorites {self.id}>'
 
     def serialize(self):
+        """Convert object fields to JSON serializable format."""
+        def force_str(value):
+            """Ensure values are strings if they are bytes."""
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="ignore")  # Decode safely
+            return value  # Return original value if not bytes
+
         return {
             "id": self.id,
             "userId": self.userId,
-            "resourceId": self.resource.id,
-            "name": self.resource.name if self.resource else None,
-            "image": self.resource.image if self.resource else None,
-            "category": self.resource.category if self.resource else None,
-            "description": self.resource.description if self.resource else None,
+            "resourceId": self.resource.id if self.resource else None,
+            "name": force_str(self.resource.name) if self.resource else None,
+            "image": force_str(self.resource.image) if self.resource and self.resource.image else None,
+            "image2": force_str(self.resource.image2) if self.resource and self.resource.image2 else None,
+            "logo": force_str(self.resource.logo) if self.resource and self.resource.logo else None,
+            "category": force_str(self.resource.category) if self.resource else None,
+            "description": force_str(self.resource.description) if self.resource else None,
         }
+
+
+    @staticmethod
+    def _convert_bytes(value):
+        """Convert bytes to a string if necessary."""
+        return value.decode("utf-8") if isinstance(value, bytes) else value
+
 
 class Schedule(db.Model):
     __tablename__ = 'Schedule'

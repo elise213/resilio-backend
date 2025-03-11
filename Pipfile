@@ -23,6 +23,8 @@ sqlalchemy = "*"
 boto3 = "*"
 flask-jwt-extended = "*"
 pyjwt = "<2.0.0"
+flask-mail = "*"
+markupsafe = ">=2.1.1"
 
 [requires]
 python_version = "3.10"

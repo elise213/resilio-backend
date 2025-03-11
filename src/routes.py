@@ -1,6 +1,4 @@
-"""
-This module takes care of starting the API Server, Loading the DB and Adding the endpoints
-"""
+
 from flask import Flask, jsonify, request, Response, url_for, Blueprint
 from flask_cors import cross_origin
 from flask_jwt_extended import (
@@ -17,11 +15,13 @@ import datetime
 import logging
 import boto3
 import os
+from flask_mail import Message
+
 
 from src.models import db, User, Resource, Comment, Favorites, Schedule, CommentLike
 from src.utils import generate_sitemap, APIException
 from src.send_email import send_email
-
+from src.app import mail
 
 api = Blueprint("api", __name__)
 
@@ -35,7 +35,7 @@ s3 = boto3.client(
 @api.route("/login", methods=["POST"])
 def create_token():
     logging.info("Inside create_token")
-    
+
     email = request.json.get("email")
     password = request.json.get("password")
 
@@ -51,19 +51,119 @@ def create_token():
     if not check_password_hash(user.password, password):
         return jsonify({"message": "Password is incorrect"}), 401
 
+    is_org_value = int(user.is_org)  # Ensure int
+    avatar = user.avatar
     favorites = getFavoritesByUserId(user.id)
-    
+
+    # 🔹 Convert `bytes` to `str` in any JSON object (recursive)
+    def force_str(obj):
+        """Recursively convert bytes to strings in any JSON object."""
+        if isinstance(obj, bytes):
+            return obj.decode("utf-8", errors="ignore")  # Decode bytes safely
+        elif isinstance(obj, dict):
+            return {k: force_str(v) for k, v in obj.items()}  # Process dict
+        elif isinstance(obj, list):
+            return [force_str(v) for v in obj]  # Process list
+        elif isinstance(obj, tuple):
+            return tuple(force_str(v) for v in obj)  # Process tuple
+        else:
+            return obj  # Return as is if not bytes
+
+
+    # 🔹 Debugging: Check for bytes inside favorites
+    print(f"🔥 Favorites (Before Fixing): {favorites}")
+
+    # 🔹 Fix avatar if it's bytes
+    if isinstance(avatar, bytes):
+        print("Fixing avatar: Converting bytes to string.")
+        avatar = avatar.decode("utf-8")
+
+    # 🔹 Fix entire favorites object recursively
+    favorites = force_str(favorites)  # ✅ Ensures JSON serialization
+
+    # 🔹 Debugging: Show cleaned favorites
+    print(f"✅ Favorites (After Fixing): {favorites}")
+
     expiration = timedelta(days=3)
     access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
 
     return jsonify(
         access_token=access_token,
         user_id=user.id,
-        is_org=user.is_org,
-        avatar=user.avatar,
+        is_org=is_org_value,
+        avatar=avatar,
         name=user.name,
-        favorites=favorites,
+        favorites=favorites,  # ✅ Now fully JSON-safe
     )
+
+
+
+# @api.route("/login", methods=["POST"])
+# def create_token():
+#     logging.info("Inside create_token")
+    
+#     email = request.json.get("email")
+#     password = request.json.get("password")
+
+#     if not email:
+#         return jsonify({"message": "Email is required"}), 400
+#     if not password:
+#         return jsonify({"message": "Password is required"}), 400
+
+#     user = User.query.filter_by(email=email).first()
+
+#     if not user:
+#         return jsonify({"message": "Email is incorrect"}), 401
+#     if not check_password_hash(user.password, password):
+#         return jsonify({"message": "Password is incorrect"}), 401
+
+#     is_org_value = 1 if str(user.is_org).lower() == "true" else 0
+
+#     favorites = getFavoritesByUserId(user.id)
+    
+#     expiration = timedelta(days=3)
+#     access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
+
+#     return jsonify(
+#         access_token=access_token,
+#         user_id=user.id,
+#         is_org=is_org_value, 
+#         avatar=user.avatar,
+#         name=user.name,
+#         favorites=favorites,
+#     )
+
+# def create_token():
+#     logging.info("Inside create_token")
+    
+#     email = request.json.get("email")
+#     password = request.json.get("password")
+
+#     if not email:
+#         return jsonify({"message": "Email is required"}), 400
+#     if not password:
+#         return jsonify({"message": "Password is required"}), 400
+
+#     user = User.query.filter_by(email=email).first()
+
+#     if not user:
+#         return jsonify({"message": "Email is incorrect"}), 401
+#     if not check_password_hash(user.password, password):
+#         return jsonify({"message": "Password is incorrect"}), 401
+
+#     favorites = getFavoritesByUserId(user.id)
+    
+#     expiration = timedelta(days=3)
+#     access_token = create_access_token(identity={"id": user.id, "email": user.email}, expires_delta=expiration)
+
+#     return jsonify(
+#         access_token=access_token,
+#         user_id=user.id,
+#         is_org=user.is_org,
+#         avatar=user.avatar,
+#         name=user.name,
+#         favorites=favorites,
+#     )
 
 # @api.route("/login", methods=["POST"])
 # def create_token():
@@ -106,32 +206,93 @@ def create_token():
     #     favorites=favorites,
     # )
 
+from flask_mail import Message
+
+def send_org_verification_email(name, email):
+    msg = Message(
+        "Organization Verification Required",
+        sender="noreply@yourapp.com",
+        recipients=[email]
+    )
+    msg.body = f"""
+    Hello {name},
+
+    Thank you for registering as an organization on our platform. 
+
+    To verify your organization, please reply to this email with the following:
+    - Proof of organization (documents, website, etc.)
+    - Additional details about your services
+
+    We will review your submission and notify you once verification is complete.
+
+    Best regards,
+    The Resilio Team
+    """
+
+    mail.send(msg)
 
 # create user
+# @api.route("/createUser", methods=["POST"])
+# def create_user():
+#     if request.method == "POST":
+#         request_body = request.get_json()
+#         if not request_body["is_org"]:
+#             return jsonify({"message": "Must enter yes or no"})
+#         if not request_body["name"]:
+#             return jsonify({"message": "Name is required"}), 400
+#         if not request_body["email"]:
+#             return jsonify({"message": "Email is required"}), 400
+#         if not request_body["password"]:
+#             return jsonify({"message": "Password is required"}), 400
+#         user = User.query.filter_by(email=request_body["email"]).first()
+#         if user:
+#             return jsonify({"message": "email already exists"}), 400
+#         user = User(
+#             is_org=request_body["is_org"],
+#             name=request_body["name"],
+#             email=request_body["email"],
+#             password=generate_password_hash(request_body["password"]),
+#             avatar=request_body["userAvatar"],
+#         )
+#         db.session.add(user)
+#         db.session.commit()
+#         return jsonify({"created": "Thank you for registering", "status": "true"}), 200
+
 @api.route("/createUser", methods=["POST"])
 def create_user():
     if request.method == "POST":
         request_body = request.get_json()
-        if not request_body["is_org"]:
-            return jsonify({"message": "Must enter yes or no"})
-        if not request_body["name"]:
+
+        # Ensure is_org is converted to an integer (0 or 1)
+        is_org_raw = request_body.get("is_org", "0")  # Default to "0" if missing
+        is_org = 1 if str(is_org_raw).lower() in ["true", "1"] else 0  # Convert to integer
+
+        if not request_body.get("name"):
             return jsonify({"message": "Name is required"}), 400
-        if not request_body["email"]:
+        if not request_body.get("email"):
             return jsonify({"message": "Email is required"}), 400
-        if not request_body["password"]:
+        if not request_body.get("password"):
             return jsonify({"message": "Password is required"}), 400
+
         user = User.query.filter_by(email=request_body["email"]).first()
         if user:
-            return jsonify({"message": "email already exists"}), 400
-        user = User(
-            is_org=request_body["is_org"],
+            return jsonify({"message": "Email already exists"}), 400
+
+        new_user = User(
+            is_org=is_org,
             name=request_body["name"],
             email=request_body["email"],
             password=generate_password_hash(request_body["password"]),
-            avatar=request_body["userAvatar"],
+            avatar=request_body.get("userAvatar"),
         )
-        db.session.add(user)
+
+        db.session.add(new_user)
         db.session.commit()
+
+        # If user is an organization, send verification email
+        if is_org == 1:
+            send_org_verification_email(request_body["name"], request_body["email"])
+
         return jsonify({"created": "Thank you for registering", "status": "true"}), 200
 
 
@@ -693,7 +854,7 @@ def get_current_user():
 def getBResults():
 
     body = request.get_json()
-    print(body["days"])
+    # print(body["days"])
 
     required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
     if not all(key in body for key in required_keys):
@@ -717,7 +878,7 @@ def getBResults():
         category for category, value in body["resources"].items() if value
     ]
 
-    print(f"🔎 Found {len(mapList)} resources in database before filtering")
+    # print(f"🔎 Found {len(mapList)} resources in database before filtering")
 
     def resource_category_matches(categories_to_check):
         if not categories_to_keep:
@@ -734,10 +895,10 @@ def getBResults():
     filtered_resources = set()
 
     for r in mapList:
-        print(f"🔍 Checking resource {r.id} - Categories: {r.category} - Schedule: {r.schedule}")
+        # print(f"🔍 Checking resource {r.id} - Categories: {r.category} - Schedule: {r.schedule}")
         category_matched = resource_category_matches(r.category)
-        if not category_matched:
-            print(f"Resource {r.id} removed due to category mismatch")
+        # if not category_matched:
+        #     print(f"Resource {r.id} removed due to category mismatch")
         
 
         if days_to_keep:
@@ -751,14 +912,14 @@ def getBResults():
         else:
             schedule_matched = True
 
-        if not schedule_matched:
-             print(f"Resource {r.id} removed due to schedule mismatch")
+        # if not schedule_matched:
+        #      print(f"Resource {r.id} removed due to schedule mismatch")
 
         if category_matched and schedule_matched:
             filtered_resources.add(r)
 
     new_resources = [r.serialize() for r in filtered_resources]
-    print("Total matching resources:", len(filtered_resources))
+    # print("Total matching resources:", len(filtered_resources))
     return jsonify(data=new_resources)
 
 
@@ -788,12 +949,10 @@ def getUnfilteredBResults():
         )
     ).all()
 
-    print(f"🔎 Found {len(mapList)} resources in database (no filtering applied)")
+    # print(f"🔎 Found {len(mapList)} resources in database (no filtering applied)")
 
     # Serialize all results without filtering
     new_resources = [r.serialize() for r in mapList]
-
-    print("Returning unfiltered resources:", len(new_resources))
     return jsonify(data=new_resources)
 
 
@@ -801,7 +960,7 @@ def getUnfilteredBResults():
 @api.route("/createResource", methods=["POST"])
 @jwt_required()
 def create_resource():
-    # user_id = get_jwt_identity()
+
     request_body = request.get_json()
     if not request_body["name"]:
         return jsonify({"status": "error", "message": "Name is required"}), 400
@@ -856,8 +1015,6 @@ def edit_resource(resource_id):
     if resource:
         print("FROM EDIT, RESOURCE", resource.name)
         print(request_body.get("name", resource.name))
-
-        # Update fields including 'alert'
         resource.name = request_body.get("name", resource.name)
         resource.address = request_body.get("address", resource.address)
         resource.phone = request_body.get("phone", resource.phone)
@@ -1051,8 +1208,8 @@ def get_all_resources():
         return jsonify({"message": "No resources found"}), 404
 
     resources_list = []
-    for resource in resources:
-        print(f"Processing resource: {resource.id}")
+    # for resource in resources:
+    #     print(f"Processing resource: {resource.id}")
     for resource in resources:
         schedule = Schedule.query.filter_by(resource_id=resource.id).first()
         if schedule:
@@ -1090,7 +1247,7 @@ def get_all_resources():
             "longitude": resource.longitude,
         }
         resources_list.append(resource_data)
-    print(f"Returning JSON response with {len(resources_list)} resources")
+    # print(f"Returning JSON response with {len(resources_list)} resources")
     return jsonify(resources=resources_list), 200
 
 
@@ -1257,7 +1414,7 @@ def getFavorites():
 
 #     return serialized_favorites
 
-def getFavoritesByUserId(user_id):
+# def getFavoritesByUserId(user_id):
     favorites = (
         db.session.query(Favorites, Resource)
         .join(Resource, Resource.id == Favorites.resourceId)
@@ -1286,6 +1443,56 @@ def getFavoritesByUserId(user_id):
     ]
 
     return serialized_favorites
+
+def decode_bytes(obj, path="root"):
+    """Recursively convert bytes to strings in any JSON object and print offending fields."""
+    if isinstance(obj, bytes):
+        print(f"🚨 Found bytes at {path}: {obj}")
+        return obj.decode("utf-8", errors="ignore")  # Safely decode
+    elif isinstance(obj, dict):
+        return {k: decode_bytes(v, f"{path}.{k}") for k, v in obj.items()}  # Process dict recursively
+    elif isinstance(obj, list):
+        return [decode_bytes(v, f"{path}[{i}]") for i, v in enumerate(obj)]  # Process list recursively
+    else:
+        return obj
+
+
+
+def getFavoritesByUserId(user_id):
+    favorites = (
+        db.session.query(Favorites, Resource)
+        .join(Resource, Resource.id == Favorites.resourceId)
+        .filter(Favorites.userId == user_id)
+        .all()
+    )
+
+    serialized_favorites = []
+    
+    for favorite, resource in favorites:
+        print(f"🔹 Debugging: Resource {resource.id}")  # Print resource ID for tracking
+        print(f"🔹 image type: {type(resource.image)}")  # Check type of image
+        print(f"🔹 image2 type: {type(resource.image2)}")  # Check type of image2
+        print(f"🔹 schedule type: {type(getScheduleForResource(resource.id))}")  # Check schedule
+
+        serialized_favorites.append({
+            **favorite.serialize(),
+            "resource": {
+                "id": resource.id,
+                "name": resource.name,
+                "address": resource.address,
+                "website": resource.website,
+                "description": resource.description,
+                "category": resource.category,
+                "image": resource.image.decode("utf-8") if isinstance(resource.image, bytes) else resource.image,
+                "image2": resource.image2.decode("utf-8") if isinstance(resource.image2, bytes) else resource.image2,
+                "latitude": resource.latitude,
+                "longitude": resource.longitude,
+                "schedule": getScheduleForResource(resource.id),
+            },
+        })
+
+    return serialized_favorites
+
 
 def getScheduleForResource(resource_id):
     schedule = Schedule.query.filter_by(resource_id=resource_id).first()

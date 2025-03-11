@@ -13,7 +13,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 import json
 from src.app import app
-from src.models import Resource, Offering, Schedule, db
+from src.models import Resource, Schedule, db
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool

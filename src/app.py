@@ -8,14 +8,24 @@ from dotenv import load_dotenv
 from src.utils import APIException, generate_sitemap
 from src.admin import setup_admin
 from src.models import db, User
+from src.extensions import mail  # Import from extensions now
 from src.routes import api
 from src.auth import basic_auth
 from src.commands import setup_commands
+# from flask_mail import Mail
 
 # Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
+
+app.config["MAIL_SERVER"] = os.getenv("MAIL_SERVER", "smtp.example.com")  
+app.config["MAIL_PORT"] = int(os.getenv("MAIL_PORT", 587))
+app.config["MAIL_USE_TLS"] = os.getenv("MAIL_USE_TLS", "true").lower() in ["true", "1"]
+app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME", "your-email@example.com")
+app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD", "your-password")
+
+mail.init_app(app)
 
 
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY")
