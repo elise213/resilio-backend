@@ -61,8 +61,6 @@ def create_token():
     return jsonify(response_data)
 
 
-
-
 def send_org_verification_email(name, email):
     msg = Message(
         "Organization Verification Required",
@@ -118,9 +116,8 @@ def create_user():
     if request.method == "POST":
         request_body = request.get_json()
 
-        # Ensure is_org is converted to an integer (0 or 1)
-        is_org_raw = request_body.get("is_org", "0")  # Default to "0" if missing
-        is_org = 1 if str(is_org_raw).lower() in ["true", "1"] else 0  # Convert to integer
+        is_org_raw = request_body.get("is_org", "0")  
+        is_org = 1 if str(is_org_raw).lower() in ["true", "1"] else 0 
 
         if not request_body.get("name"):
             return jsonify({"message": "Name is required"}), 400
@@ -140,11 +137,9 @@ def create_user():
             password=generate_password_hash(request_body["password"]),
             avatar=request_body.get("userAvatar"),
         )
-
         db.session.add(new_user)
         db.session.commit()
 
-        # If user is an organization, send verification email
         if is_org == 1:
             send_org_verification_email(request_body["name"], request_body["email"])
 
@@ -242,7 +237,7 @@ def update_profile():
 def change_password():
     data = request.get_json()
     user_identity = get_jwt_identity()
-    user_email = user_identity["email"]  # ✅ Extract email instead of ID
+    user_email = user_identity["email"]  
 
     user = User.query.filter_by(email=user_email).first()
 
@@ -259,103 +254,39 @@ def change_password():
     return jsonify({"message": "Password updated successfully"}), 200
 
 
+
+
 @api.route("/forgot-password", methods=["POST"])
 def send_email_route():
     data = request.get_json()
     recipient_email = data.get("recipient_email")
 
+    print("Received password reset request for:", recipient_email)  
+
     if not recipient_email:
+        print("Error: No email provided")  
         return jsonify({"error": "Email is required"}), 400
 
     token = create_access_token(identity=recipient_email, expires_delta=timedelta(minutes=30))
     print(f"Generated JWT Token: {token}")
 
-    reset_link = f"http://www.lifeisaword.org/reset-password?token={token}"
+    reset_link = f"http://www.lifeisaword.org/resetpassword?token={token}"
     
-
     email_body = f"""
-    <!DOCTYPE html>
     <html>
     <head>
-        <meta charset="UTF-8">
         <title>Password Reset</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                background-color: #f4f4f4;
-                margin: 0;
-                padding: 0;
-            }}
-            .email-container {{
-                max-width: 600px;
-                margin: auto;
-                background-color: #ffffff;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            }}
-            .header {{
-                background-color: #4CAF50;
-                color: white;
-                padding: 10px 20px;
-                text-align: center;
-                font-size: 20px;
-                font-weight: bold;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-            }}
-            .content {{
-                padding: 20px;
-                line-height: 1.6;
-                color: #333333;
-            }}
-            .button {{
-                display: inline-block;
-                padding: 12px 24px;
-                margin: 20px 0;
-                font-size: 16px;
-                font-weight: bold;
-                color: #ffffff;
-                background-color: #4CAF50;
-                text-decoration: none;
-                border-radius: 5px;
-                text-align: center;
-            }}
-            .button:hover {{
-                background-color: #45a049;
-            }}
-            .footer {{
-                text-align: center;
-                padding: 10px;
-                font-size: 12px;
-                color: #777777;
-            }}
-        </style>
     </head>
     <body>
-        <div class="email-container">
-            <div class="header">Password Reset Request</div>
-            <div class="content">
-                <p>Hello,</p>
-                <p>We received a request to reset your password. Click the button below to reset it:</p>
-                <p style="text-align: center;">
-                    <a href="{reset_link}" class="button">Reset Password</a>
-                </p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-                <p>For any issues, please contact our support team.</p>
-                <p>Best regards,<br><strong>The Team</strong></p>
-                <p style="text-align: center;">
-                    <a href="https://www.lifeisaword.org" class="button">Visit LifeIsAWord.org</a>
-                </p>
-            </div>
-            <div class="footer">
-                <p>&copy; 2024 Our Service. All rights reserved.</p>
-            </div>
-        </div>
+        <p>Hello,</p>
+        <p>Click the button below to reset your password:</p>
+        <p><a href="{reset_link}" style="background: green; color: white; padding: 10px 20px; text-decoration: none;">Reset Password</a></p>
+        <p>If you did not request this, ignore this email.</p>
     </body>
     </html>
     """
     result = send_email(recipient_email, "Password Recovery", email_body)
+    print("Email send function result:", result)  
 
     return jsonify({"message": "Email sent", "reset_link": reset_link})
 
@@ -732,8 +663,6 @@ def getBResults():
     categories_to_keep = [
         category for category, value in body["resources"].items() if value
     ]
-
-    # print(f"🔎 Found {len(mapList)} resources in database before filtering")
 
     def resource_category_matches(categories_to_check):
         if not categories_to_keep:
