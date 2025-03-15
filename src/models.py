@@ -120,7 +120,51 @@ class CommentLike(db.Model):
             "created_at": self.created_at
         }
 
+# class Resource(db.Model):
+#     __tablename__ = "Resource"
+#     id = db.Column(db.Integer, primary_key=True)
+#     name = db.Column(db.String(256), unique=False, nullable=False)
+#     address = db.Column(db.String(256), unique=False, nullable=True)
+#     phone = db.Column(db.String(256), unique=False, nullable=True)
+#     category = db.Column(db.String(256), unique=False, nullable=True)
+#     website = db.Column(db.String(256), unique=False, nullable=True)
+#     description = db.Column(db.String(900), unique=False, nullable=True)
+#     alert = db.Column(db.String(900), unique=False, nullable=True)
+#     latitude = db.Column(db.Float, unique=False, nullable=True)
+#     longitude = db.Column(db.Float, unique=False, nullable=True)
+#     image = db.Column(db.String(500), unique=False, nullable=True)
+#     image2 = db.Column(db.String(500), unique=False, nullable=True)
+#     logo = db.Column(db.String(500), unique=False, nullable=True)
+#     user_id = db.Column(db.Integer, unique=False, nullable=True)
+#     comment = db.relationship("Comment", backref="Resource", lazy=True)
+#     schedule = db.relationship(
+#         "Schedule", backref="Resource", lazy=True, uselist=False)
 
+#     def __repr__(self):
+#         return f'<Resource {self.name}>'
+
+#     def serialize(self):
+#         serialized_schedule = self.schedule.serialize() if self.schedule else None
+#         return {
+#             "id": self.id,
+#             "name": self.name,
+#             "address": self.address,
+#             "phone": self.phone,
+#             "website": self.website,
+#             "description": self.description,
+#             "alert": self.alert,
+#             "category": self.category,
+#             "image": self.image,
+#             "image2": self.image2,
+#             "logo": self.logo,
+#             "user_id": self.user_id,
+#             "latitude": self.latitude,
+#             "longitude": self.longitude,
+#             "schedule": serialized_schedule
+#         }
+
+
+from datetime import datetime
 
 class Resource(db.Model):
     __tablename__ = "Resource"
@@ -138,6 +182,8 @@ class Resource(db.Model):
     image2 = db.Column(db.String(500), unique=False, nullable=True)
     logo = db.Column(db.String(500), unique=False, nullable=True)
     user_id = db.Column(db.Integer, unique=False, nullable=True)
+    updated = db.Column(db.DateTime, nullable=False, default=datetime(2023, 1, 1))  # Default value for old resources
+
     comment = db.relationship("Comment", backref="Resource", lazy=True)
     schedule = db.relationship(
         "Schedule", backref="Resource", lazy=True, uselist=False)
@@ -162,7 +208,8 @@ class Resource(db.Model):
             "user_id": self.user_id,
             "latitude": self.latitude,
             "longitude": self.longitude,
-            "schedule": serialized_schedule
+            "schedule": serialized_schedule,
+           "updated": self.updated.isoformat()
         }
 
 

@@ -12,6 +12,7 @@ from src.extensions import mail
 from src.routes import api
 from src.auth import basic_auth
 from src.commands import setup_commands
+import logging
 
 load_dotenv()
 
@@ -59,12 +60,20 @@ db.init_app(app)
 # CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 # CORS(app, resources={r"/api/*": {"origins": "https://lifeisaword.org"}})
 
-CORS(app, supports_credentials=True, origins=[
-    "https://lifeisaword.org",
-    "https://lifeisaword.com",
+logging.basicConfig(level=logging.DEBUG)
+
+CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": [
     "http://localhost:5173",
-    "http://localhost:5000"
-])
+    "http://localhost:5000",
+    "https://lifeisaword.org",
+    "https://lifeisaword.com"
+]}})
+
+
+def log_request():
+    logging.debug(f"📩 Incoming {request.method} request to {request.url}")
+    logging.debug(f"🔍 Headers: {dict(request.headers)}")
+    logging.debug(f"📝 Body: {request.get_data(as_text=True)}")
 
 
 setup_admin(app)
