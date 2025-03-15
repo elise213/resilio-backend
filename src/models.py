@@ -3,43 +3,9 @@ from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
-
-import json
-
-db = SQLAlchemy()
-
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from datetime import datetime
 
 db = SQLAlchemy()
-
-# class User(db.Model):
-#     __tablename__ = "User"
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String(256))
-#     email = db.Column(db.String(256), unique=True, nullable=False)
-#     password = db.Column(db.String(256), nullable=False)
-#     is_org = db.Column(db.String(80), nullable=False)
-#     avatar = db.Column(db.String(80))
-#     picture = db.Column(db.String(80))
-#     city = db.Column(db.String(80), nullable=True)
-#     comment_likes = relationship("CommentLike", backref="user", lazy="dynamic")
-
-#     def __repr__(self):
-#         return f'<User {self.email}>'
-
-#     def serialize(self):
-#         return {
-#             "id": self.id,
-#             "name": self.name,
-#             "email": self.email,
-#             "is_org": self.is_org,
-#             "avatar": self.avatar,
-#             "picture": self.picture,
-#             "city": self.city
-#         }
 
 class User(db.Model):
     __tablename__ = "User"
@@ -47,7 +13,7 @@ class User(db.Model):
     name = db.Column(db.String(256))
     email = db.Column(db.String(256), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
-    is_org = db.Column(db.Integer, nullable=False, default=0)  # Convert to Integer
+    is_org = db.Column(db.Integer, nullable=False, default=0)  
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
     city = db.Column(db.String(80), nullable=True)
@@ -56,7 +22,6 @@ class User(db.Model):
         return f'<User {self.email}>'
 
     def serialize(self):
-        # Ensure old "false"/"true" values are converted properly
         is_org_value = 1 if str(self.is_org).lower() == "true" else 0
         return {
             "id": self.id,
@@ -120,51 +85,8 @@ class CommentLike(db.Model):
             "created_at": self.created_at
         }
 
-# class Resource(db.Model):
-#     __tablename__ = "Resource"
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String(256), unique=False, nullable=False)
-#     address = db.Column(db.String(256), unique=False, nullable=True)
-#     phone = db.Column(db.String(256), unique=False, nullable=True)
-#     category = db.Column(db.String(256), unique=False, nullable=True)
-#     website = db.Column(db.String(256), unique=False, nullable=True)
-#     description = db.Column(db.String(900), unique=False, nullable=True)
-#     alert = db.Column(db.String(900), unique=False, nullable=True)
-#     latitude = db.Column(db.Float, unique=False, nullable=True)
-#     longitude = db.Column(db.Float, unique=False, nullable=True)
-#     image = db.Column(db.String(500), unique=False, nullable=True)
-#     image2 = db.Column(db.String(500), unique=False, nullable=True)
-#     logo = db.Column(db.String(500), unique=False, nullable=True)
-#     user_id = db.Column(db.Integer, unique=False, nullable=True)
-#     comment = db.relationship("Comment", backref="Resource", lazy=True)
-#     schedule = db.relationship(
-#         "Schedule", backref="Resource", lazy=True, uselist=False)
-
-#     def __repr__(self):
-#         return f'<Resource {self.name}>'
-
-#     def serialize(self):
-#         serialized_schedule = self.schedule.serialize() if self.schedule else None
-#         return {
-#             "id": self.id,
-#             "name": self.name,
-#             "address": self.address,
-#             "phone": self.phone,
-#             "website": self.website,
-#             "description": self.description,
-#             "alert": self.alert,
-#             "category": self.category,
-#             "image": self.image,
-#             "image2": self.image2,
-#             "logo": self.logo,
-#             "user_id": self.user_id,
-#             "latitude": self.latitude,
-#             "longitude": self.longitude,
-#             "schedule": serialized_schedule
-#         }
 
 
-from datetime import datetime
 
 class Resource(db.Model):
     __tablename__ = "Resource"

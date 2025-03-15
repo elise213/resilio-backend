@@ -19,8 +19,6 @@ from flask_mail import Message
 from datetime import datetime, timezone, timedelta
 from dateutil import parser  
 from flask_cors import cross_origin
-from werkzeug.security import generate_password_hash
-
 
 
 api = Blueprint("api", __name__)
@@ -468,57 +466,6 @@ def getUnfilteredBResults():
     return jsonify(data=new_resources)
 
 
-# # create resource
-# @api.route("/createResource", methods=["POST"])
-# @jwt_required()
-# def create_resource():
-#     request_body = request.get_json()
-#     if not request_body["name"]:
-#         return jsonify({"status": "error", "message": "Name is required"}), 400
-#     resource = Resource.query.filter_by(name=request_body["name"]).first()
-#     if resource:
-#         return jsonify({"status": "error", "message": "Resource already exists"}), 400
-#     resource = Resource(
-#         name=request_body["name"],
-#         address=request_body["address"],
-#         phone=request_body["phone"],
-#         category=request_body["category"],
-#         website=request_body["website"],
-#         description=request_body["description"],
-#         latitude=float(request_body["latitude"]),
-#         longitude=float(request_body["longitude"]),
-#         image=request_body["image"],
-#         image2=request_body["image2"],
-
-#     )
-#     db.session.add(resource)
-#     db.session.commit()
-#     days = request_body["days"]
-#     schedule = Schedule(
-#         resource_id=resource.id,
-#         mondayStart=days["monday"]["start"],
-#         mondayEnd=days["monday"]["end"],
-#         tuesdayStart=days["tuesday"]["start"],
-#         tuesdayEnd=days["tuesday"]["end"],
-#         wednesdayStart=days["wednesday"]["start"],
-#         wednesdayEnd=days["wednesday"]["end"],
-#         thursdayStart=days["thursday"]["start"],
-#         thursdayEnd=days["thursday"]["end"],
-#         fridayStart=days["friday"]["start"],
-#         fridayEnd=days["friday"]["end"],
-#         saturdayStart=days["saturday"]["start"],
-#         saturdayEnd=days["saturday"]["end"],
-#         sundayStart=days["sunday"]["start"],
-#         sundayEnd=days["sunday"]["end"],
-#     )
-#     db.session.add(schedule)
-#     db.session.commit()
-#     return jsonify({"status": "success"}), 200
-
-
-from datetime import datetime, timezone
-
-from datetime import datetime, timezone
 
 @api.route("/createResource", methods=["POST"])
 @jwt_required()
@@ -553,7 +500,7 @@ def create_resource():
         longitude=longitude,
         image=request_body["image"],
         image2=request_body["image2"],
-        updated=datetime.now(timezone.utc),  # Ensure UTC-aware timestamp
+        updated=datetime.now(timezone.utc), 
     )
 
     db.session.add(resource)
@@ -577,7 +524,6 @@ def create_resource():
         sundayStart=days.get("sunday", {}).get("start"),
         sundayEnd=days.get("sunday", {}).get("end"),
     )
-
     db.session.add(schedule)
     db.session.commit()
 
@@ -612,10 +558,8 @@ def edit_resource(resource_id):
     resource.image = request_body.get("image", resource.image)
     resource.image2 = request_body.get("image2", resource.image2)
 
-    # ✅ Debugging: Print the received "updated" date before processing
     print(f"Received 'updated' field: {request_body.get('updated')}")
 
-    # ✅ Allow user to override the updated timestamp
     if "updated" in request_body and request_body["updated"]:
         try:
             resource.updated = parser.isoparse(request_body["updated"])
@@ -624,7 +568,7 @@ def edit_resource(resource_id):
             print("❌ Invalid date format for 'updated' field")
             return jsonify({"message": "Invalid date format for updated field"}), 400
     else:
-        resource.updated = datetime.now(timezone.utc)  # Default to current UTC time
+        resource.updated = datetime.now(timezone.utc) 
         print(f"Using current UTC time for 'updated' field: {resource.updated}")
 
     db.session.commit()
@@ -647,12 +591,11 @@ def get_resource(resource_id):
 @api.route("/deleteResource/<int:resource_id>", methods=["DELETE"])
 @jwt_required()
 def delete_resource(resource_id):
-    user_identity = get_jwt_identity()  # This is returning a dict
-    user_id = user_identity.get("id")  # Extract just the ID
+    user_identity = get_jwt_identity()  
+    user_id = user_identity.get("id") 
 
-    print("User ID from JWT:", user_id)  # Debugging
     try:
-        if user_id in [1, 3, 4, 8]:  # Now this check should work
+        if user_id in [1, 3, 4, 8]: 
             resource = Resource.query.get(resource_id)
             if resource:
                 Favorites.query.filter_by(resourceId=resource_id).delete()
@@ -668,56 +611,6 @@ def delete_resource(resource_id):
         db.session.rollback()
         print("Error deleting resource:", e)
         return jsonify({"message": "An error occurred while deleting the resource", "status": "false"}), 500
-
-
-
-# DELETE RESOURCE
-# @api.route("/deleteResource/<int:resource_id>", methods=["DELETE"])
-# @jwt_required()
-# def delete_resource(resource_id):
-#     user_id = get_jwt_identity()
-#     print("User ID from JWT:", user_id) 
-#     try:
-#         if user_id in [1, 3, 4, 8]:  # Ensure user is authorized
-#             resource = Resource.query.get(resource_id)
-#             if resource:
-#                 Favorites.query.filter_by(resourceId=resource_id).delete()
-#                 db.session.flush() 
-#                 db.session.delete(resource)
-#                 db.session.commit()
-#                 return (
-#                     jsonify(
-#                         {"message": "Resource deleted successfully", "status": "true"}
-#                     ),
-#                     200,
-#                 )
-#             else:
-#                 return (
-#                     jsonify({"message": "Resource not found", "status": "false"}),
-#                     404,
-#                 )
-#         else:
-#             return (
-#                 jsonify(
-#                     {
-#                         "message": "Unauthorized: User does not have permission to delete resources",
-#                         "status": "false",
-#                     }
-#                 ),
-#                 403,
-#             )
-#     except Exception as e:
-#         db.session.rollback()  
-#         print("Error deleting resource:", e)  
-#         return (
-#             jsonify(
-#                 {
-#                     "message": "An error occurred while deleting the resource",
-#                     "status": "false",
-#                 }
-#             ),
-#             500,
-#         )
 
 
 @api.route("/getAllResources", methods=["GET"])

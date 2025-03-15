@@ -54,12 +54,6 @@ basic_auth.init_app(app)
 MIGRATE = Migrate(app, db)
 db.init_app(app)
 
-# CORS Configuration
-# CORS(app, resources={r"/api/*": {"origins": "*"}})
-
-# CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
-# CORS(app, resources={r"/api/*": {"origins": "https://lifeisaword.org"}})
-
 logging.basicConfig(level=logging.DEBUG)
 
 CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": [
