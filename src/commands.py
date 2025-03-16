@@ -1,7 +1,7 @@
 
 import click
 import json
-from src.models import db, User, Resource, Schedule, Favorites, Comment
+from src.models import db, User, Resource, Schedule, Favorites, Comment, ResourceUsers
 
 """
 In this file, you can add as many commands as you want using the @app.cli.command decorator
@@ -71,5 +71,7 @@ def setup_commands(app):
         comment_data = [comment.serialize() for comment in comments]
         save_to_json('Comment_data.json', comment_data)
 
-        print("Data export completed.")
+
+
+        # print("Data export completed.")
 

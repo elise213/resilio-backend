@@ -1,7 +1,7 @@
 
 import os
 from flask_admin import Admin
-from src.models import db, User, CommentLike, Resource, Comment, Favorites, Schedule
+from src.models import db, User, CommentLike, Resource, Comment, Favorites, Schedule, ResourceUsers
 from flask_admin.contrib.sqla import ModelView
 
 
@@ -24,6 +24,14 @@ class ResourceModelView(ModelView):
         "schedule",
         "alert",
     )
+
+
+class ResourceUsersModelView(ModelView):
+    column_list = ("id", "resource_id", "user_id")
+    form_columns = ("resource_id", "user_id")
+    can_create = True   # Allow adding new entries
+    can_edit = True     # Allow editing existing entries
+    can_delete = True   # Allow deletion if needed
 
 
 class ScheduleModelView(ModelView):
@@ -90,11 +98,11 @@ def setup_admin(app):
     app.secret_key = os.environ.get('FLASK_APP_KEY', 'sample key')
     app.config['FLASK_ADMIN_SWATCH'] = 'cerulean'
     admin = Admin(app, name='4Geeks Admin', template_mode='bootstrap3')
-
     admin.add_view(ResourceModelView(Resource, db.session))
     admin.add_view(ScheduleModelView(Schedule, db.session))
     admin.add_view(UserModelView(User, db.session))
     admin.add_view(CommentModelView(Comment, db.session))
     admin.add_view(CommentLikeModelView(CommentLike, db.session))
     admin.add_view(FavoriteModelView(Favorites, db.session))
+    admin.add_view(ResourceUsersModelView(ResourceUsers, db.session))
 

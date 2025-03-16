@@ -12,7 +12,7 @@ import logging
 import boto3
 import os
 from flask_mail import Message
-from src.models import db, User, Resource, Comment, Favorites, Schedule, CommentLike
+from src.models import db, User, Resource, Comment, Favorites, Schedule, CommentLike, ResourceUsers
 from src.send_email import send_email
 from src.app import mail
 from flask_mail import Message
@@ -80,6 +80,35 @@ def send_org_verification_email(name, email):
     """
 
     mail.send(msg)
+
+@api.route("/getAllUsers", methods=["GET"])
+def get_all_users():
+    users = User.query.all()
+    if not users:
+        return jsonify({"message": "No users found"}), 404
+    
+    users_list = [{"id": user.id, "name": user.name, "email": user.email} for user in users]
+    
+    return jsonify({"users": users_list}), 200
+
+@api.route("/getResourceUsers/<int:resource_id>", methods=["GET"])
+def get_resource_users(resource_id):
+    # Query users linked to the resource via ResourceUsers table
+    resource_users = ResourceUsers.query.filter_by(resource_id=resource_id).all()
+
+    # If no users found, return an empty array
+    if not resource_users:
+        return jsonify({"users": []}), 200
+
+    # Extract user IDs and fetch user details
+    user_ids = [ru.user_id for ru in resource_users]
+    users = User.query.filter(User.id.in_(user_ids)).all()
+
+    users_list = [{"id": user.id, "name": user.name, "email": user.email} for user in users]
+
+    return jsonify({"users": users_list}), 200
+
+
 
 @api.route("/createUser", methods=["POST"])
 def create_user():
@@ -530,18 +559,61 @@ def create_resource():
     return jsonify({"status": "success"}), 200
 
 
+# @api.route("/editResource/<int:resource_id>", methods=["PUT"])
+# @jwt_required() 
+# def edit_resource(resource_id):
+#     print("RESOURCE ID", resource_id)
+#     request_body = request.get_json()
+#     resource = Resource.query.get(resource_id)
+
+#     if not resource:
+#         return jsonify({"message": "Resource not found"}), 404
+
+#     print("FROM EDIT, RESOURCE", resource.name)
+
+#     resource.name = request_body.get("name", resource.name)
+#     resource.address = request_body.get("address", resource.address)
+#     resource.phone = request_body.get("phone", resource.phone)
+#     resource.category = request_body.get("category", resource.category)
+#     resource.website = request_body.get("website", resource.website)
+#     resource.description = request_body.get("description", resource.description)
+#     resource.alert = request_body.get("alert", resource.alert)
+
+#     if "latitude" in request_body:
+#         resource.latitude = float(request_body["latitude"])
+#     if "longitude" in request_body:
+#         resource.longitude = float(request_body["longitude"])
+
+#     resource.image = request_body.get("image", resource.image)
+#     resource.image2 = request_body.get("image2", resource.image2)
+
+#     print(f"Received 'updated' field: {request_body.get('updated')}")
+
+#     if "updated" in request_body and request_body["updated"]:
+#         try:
+#             resource.updated = parser.isoparse(request_body["updated"])
+#             print(f"Parsed 'updated' field successfully: {resource.updated}")
+#         except ValueError:
+#             print("❌ Invalid date format for 'updated' field")
+#             return jsonify({"message": "Invalid date format for updated field"}), 400
+#     else:
+#         resource.updated = datetime.now(timezone.utc) 
+#         print(f"Using current UTC time for 'updated' field: {resource.updated}")
+
+#     db.session.commit()
+
+#     return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
+
 @api.route("/editResource/<int:resource_id>", methods=["PUT"])
-@jwt_required() 
+@jwt_required()
 def edit_resource(resource_id):
-    print("RESOURCE ID", resource_id)
     request_body = request.get_json()
     resource = Resource.query.get(resource_id)
 
     if not resource:
         return jsonify({"message": "Resource not found"}), 404
 
-    print("FROM EDIT, RESOURCE", resource.name)
-
+    # Update resource fields
     resource.name = request_body.get("name", resource.name)
     resource.address = request_body.get("address", resource.address)
     resource.phone = request_body.get("phone", resource.phone)
@@ -550,41 +622,48 @@ def edit_resource(resource_id):
     resource.description = request_body.get("description", resource.description)
     resource.alert = request_body.get("alert", resource.alert)
 
+    # Update latitude & longitude
     if "latitude" in request_body:
-        resource.latitude = float(request_body["latitude"])
+        resource.latitude = float(request_body["latitude"]) if request_body["latitude"] is not None else None
+
     if "longitude" in request_body:
-        resource.longitude = float(request_body["longitude"])
-
-    resource.image = request_body.get("image", resource.image)
-    resource.image2 = request_body.get("image2", resource.image2)
-
-    print(f"Received 'updated' field: {request_body.get('updated')}")
-
-    if "updated" in request_body and request_body["updated"]:
-        try:
-            resource.updated = parser.isoparse(request_body["updated"])
-            print(f"Parsed 'updated' field successfully: {resource.updated}")
-        except ValueError:
-            print("❌ Invalid date format for 'updated' field")
-            return jsonify({"message": "Invalid date format for updated field"}), 400
-    else:
-        resource.updated = datetime.now(timezone.utc) 
-        print(f"Using current UTC time for 'updated' field: {resource.updated}")
+        resource.longitude = float(request_body["longitude"]) if request_body["longitude"] is not None else None
+    # Update associated users
+    if "user_ids" in request_body:
+        # Delete old assignments
+        ResourceUsers.query.filter_by(resource_id=resource_id).delete()
+        # Add new ones
+        for user_id in request_body["user_ids"]:
+            new_assignment = ResourceUsers(resource_id=resource_id, user_id=user_id)
+            db.session.add(new_assignment)
 
     db.session.commit()
-
-    return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
+    return jsonify({"message": "Resource updated successfully"}), 200
 
 
 # GET RESOURCE
+# @api.route("/getResource/<int:resource_id>", methods=["GET"])
+# def get_resource(resource_id):
+#     resource = Resource.query.get(resource_id)
+#     if resource:
+#         response_data = resource.serialize()
+#         return jsonify(response_data), 200
+#     else:
+#         return jsonify({"message": "Resource not found"}), 404
+
 @api.route("/getResource/<int:resource_id>", methods=["GET"])
 def get_resource(resource_id):
     resource = Resource.query.get(resource_id)
-    if resource:
-        response_data = resource.serialize()
-        return jsonify(response_data), 200
-    else:
+    if not resource:
         return jsonify({"message": "Resource not found"}), 404
+
+    user_ids = [ru.user_id for ru in resource.resource_users]
+
+    return jsonify({
+        "id": resource.id,
+        "name": resource.name,
+        "user_ids": user_ids 
+    })
 
 
 

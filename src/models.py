@@ -7,6 +7,8 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+
+
 class User(db.Model):
     __tablename__ = "User"
     id = db.Column(db.Integer, primary_key=True)
@@ -17,6 +19,19 @@ class User(db.Model):
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
     city = db.Column(db.String(80), nullable=True)
+    # Many-to-Many relationship with Resource
+    resources = db.relationship(
+        "Resource",
+        secondary="resource_users",  # Specify the association table
+        back_populates="users"
+    )
+    # One-to-Many relationship with ResourceUsers (Join Table)
+    user_resources = db.relationship(
+        "ResourceUsers",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        overlaps="resources"
+    )
 
     def __repr__(self):
         return f'<User {self.email}>'
@@ -30,7 +45,77 @@ class User(db.Model):
             "is_org": is_org_value,
             "avatar": self.avatar,
             "picture": self.picture,
-            "city": self.city
+            "city": self.city,
+          "resources": [resource.id for resource in self.resources],
+        }
+
+
+class ResourceUsers(db.Model):
+    __tablename__ = "resource_users"
+
+    resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id", ondelete="CASCADE"), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("User.id", ondelete="CASCADE"), primary_key=True)
+
+    # Explicit relationships to ensure correct joining
+    resource = db.relationship("Resource", back_populates="resource_users")
+    user = db.relationship("User", back_populates="user_resources")
+
+
+
+class Resource(db.Model):
+    __tablename__ = "Resource"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(256), unique=False, nullable=False)
+    address = db.Column(db.String(256), unique=False, nullable=True)
+    phone = db.Column(db.String(256), unique=False, nullable=True)
+    category = db.Column(db.String(256), unique=False, nullable=True)
+    website = db.Column(db.String(256), unique=False, nullable=True)
+    description = db.Column(db.String(900), unique=False, nullable=True)
+    alert = db.Column(db.String(900), unique=False, nullable=True)
+    latitude = db.Column(db.Float, unique=False, nullable=True)
+    longitude = db.Column(db.Float, unique=False, nullable=True)
+    image = db.Column(db.String(500), unique=False, nullable=True)
+    image2 = db.Column(db.String(500), unique=False, nullable=True)
+    logo = db.Column(db.String(500), unique=False, nullable=True)
+    users = db.relationship(
+        "User",
+        secondary="resource_users", 
+        back_populates="resources"
+    )
+    resource_users = db.relationship(
+        "ResourceUsers",
+        back_populates="resource",
+        cascade="all, delete-orphan",
+        overlaps="users"
+    )
+    updated = db.Column(db.DateTime, nullable=True) 
+    comment = db.relationship("Comment", backref="Resource", lazy=True)
+    schedule = db.relationship(
+        "Schedule", backref="Resource", lazy=True, uselist=False)
+
+    def __repr__(self):
+        return f'<Resource {self.name}>'
+
+    def serialize(self):
+        serialized_schedule = self.schedule.serialize() if self.schedule else None
+        return {
+            "id": self.id,
+            "name": self.name,
+            "address": self.address,
+            "phone": self.phone,
+            "website": self.website,
+            "description": self.description,
+            "alert": self.alert,
+            "category": self.category,
+            "image": self.image,
+            "image2": self.image2,
+            "logo": self.logo,
+            # "user_id": self.user_id,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "schedule": serialized_schedule,
+           "updated": self.updated.isoformat(),
+           "users": [user.id for user in self.users],
         }
 
 
@@ -42,7 +127,7 @@ class Comment(db.Model):
     comment_cont = db.Column(db.String(280), nullable=False)
     rating_value = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
-    comment_likes = relationship("CommentLike", backref="comment", lazy="dynamic")
+    comment_likes = relationship("CommentLike", backref="Comment", lazy="dynamic")
 
     def __repr__(self):
         return f'<Comment {self.id}>'
@@ -51,7 +136,7 @@ class Comment(db.Model):
         user = User.query.get(self.user_id)
         resource = Resource.query.get(self.resource_id)
         like_count = self.comment_likes.count() 
-        likes = [{"user_id": like.user_id} for like in self.comment_likes]  # Include list of likes
+        likes = [{"user_id": like.user_id} for like in self.comment_likes]  
         return {
             "comment_id": self.id,
             "user_id": self.user_id,
@@ -83,55 +168,6 @@ class CommentLike(db.Model):
             "user_id": self.user_id,
             "comment_id": self.comment_id,
             "created_at": self.created_at
-        }
-
-
-
-
-class Resource(db.Model):
-    __tablename__ = "Resource"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(256), unique=False, nullable=False)
-    address = db.Column(db.String(256), unique=False, nullable=True)
-    phone = db.Column(db.String(256), unique=False, nullable=True)
-    category = db.Column(db.String(256), unique=False, nullable=True)
-    website = db.Column(db.String(256), unique=False, nullable=True)
-    description = db.Column(db.String(900), unique=False, nullable=True)
-    alert = db.Column(db.String(900), unique=False, nullable=True)
-    latitude = db.Column(db.Float, unique=False, nullable=True)
-    longitude = db.Column(db.Float, unique=False, nullable=True)
-    image = db.Column(db.String(500), unique=False, nullable=True)
-    image2 = db.Column(db.String(500), unique=False, nullable=True)
-    logo = db.Column(db.String(500), unique=False, nullable=True)
-    user_id = db.Column(db.Integer, unique=False, nullable=True)
-    updated = db.Column(db.DateTime, nullable=False, default=datetime(2023, 1, 1))  # Default value for old resources
-
-    comment = db.relationship("Comment", backref="Resource", lazy=True)
-    schedule = db.relationship(
-        "Schedule", backref="Resource", lazy=True, uselist=False)
-
-    def __repr__(self):
-        return f'<Resource {self.name}>'
-
-    def serialize(self):
-        serialized_schedule = self.schedule.serialize() if self.schedule else None
-        return {
-            "id": self.id,
-            "name": self.name,
-            "address": self.address,
-            "phone": self.phone,
-            "website": self.website,
-            "description": self.description,
-            "alert": self.alert,
-            "category": self.category,
-            "image": self.image,
-            "image2": self.image2,
-            "logo": self.logo,
-            "user_id": self.user_id,
-            "latitude": self.latitude,
-            "longitude": self.longitude,
-            "schedule": serialized_schedule,
-           "updated": self.updated.isoformat()
         }
 
 
