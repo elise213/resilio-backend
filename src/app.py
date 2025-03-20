@@ -63,6 +63,17 @@ CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": [
     "https://lifeisaword.com"
 ]}})
 
+# CORS(app, supports_credentials=True, resources={r"/api/*": {
+#     "origins": [
+#         "http://localhost:5173",
+#         "http://localhost:5000",
+#         "https://lifeisaword.org",
+#         "https://lifeisaword.com"
+#     ],
+#     "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Ensure OPTIONS is included
+#     "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Origin"]
+# }})
+
 
 def log_request():
     logging.debug(f"📩 Incoming {request.method} request to {request.url}")

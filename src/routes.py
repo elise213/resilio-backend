@@ -21,6 +21,7 @@ from dateutil import parser
 from flask_cors import cross_origin
 
 
+
 api = Blueprint("api", __name__)
 
 s3 = boto3.client(
@@ -312,13 +313,14 @@ def delete_comment(comment_id):
 # get comments
 @api.route("/getcomments/<int:resource_id>", methods=["GET"])
 def getcomments(resource_id):
-    print(resource_id)
+    print(f"📡 Fetching approved comments for resource ID: {resource_id}")
     comments = getCommentsByResourceId(resource_id)
+    if not comments:
+        print(f"⚠️ No approved comments found for resource ID: {resource_id}")
     return jsonify({"comments": comments})
 
-
 def getCommentsByResourceId(resourceId):
-    comments = Comment.query.filter_by(resource_id=resourceId).all()
+    comments = Comment.query.filter_by(resource_id=resourceId, approved=True).all()
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
 
@@ -416,83 +418,189 @@ def get_current_user():
     return jsonify(user.serialize()), 200
 # __________________________________________________RESOURCES
 
-
-# GETBRESULTS
 @api.route("/getBResults", methods=["POST"])
 def getBResults():
     body = request.get_json()
-    required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
-    if not all(key in body for key in required_keys):
-        return jsonify(error="Missing required parameters in the request body"), 400
-    neLat = float(body["neLat"])
-    neLng = float(body["neLng"])
-    swLat = float(body["swLat"])
-    swLng = float(body["swLng"])
-    mapList = Resource.query.filter(
-        and_(
-            not_(Resource.latitude == None),
-            not_(Resource.longitude == None),
-            cast(Resource.latitude, Float) <= neLat,
-            cast(Resource.latitude, Float) >= swLat,
-            cast(Resource.longitude, Float) <= neLng,
-            cast(Resource.longitude, Float) >= swLng,
-        )
-    ).all()
-    categories_to_keep = [
-        category for category, value in body["resources"].items() if value
-    ]
-    def resource_category_matches(categories_to_check):
-        if not categories_to_keep:
-            return True
-        if isinstance(categories_to_check, str):
-            categories = [cat.strip() for cat in categories_to_check.split(",")]
-            return any(cat in categories_to_keep for cat in categories)
-        return False
-    days_to_keep = body.get("days", {})
-    days_to_keep = [day for day, value in days_to_keep.items() if value]
-    filtered_resources = set()
-    for r in mapList:
-        category_matched = resource_category_matches(r.category)
-        if days_to_keep:
-            if r.schedule:
-                schedule_matched = any(
-                    getattr(r.schedule, day + "Start", None) not in (None, "")
-                    for day in days_to_keep
-                )
-            else:
-                schedule_matched = False
-        else:
-            schedule_matched = True
-        if category_matched and schedule_matched:
-            filtered_resources.add(r)
-    new_resources = [r.serialize() for r in filtered_resources]
-    return jsonify(data=new_resources)
+    print(f"📥 Received API Request: {body}")  # ✅ LOG incoming request
 
-
-# GET UNFILTERED RESULTS (No Day or Category Filtering)
-@api.route("/getUnfilteredBResults", methods=["POST"])
-def getUnfilteredBResults():
-    body = request.get_json()
+    if not body:
+        return jsonify(error="Missing request body"), 400
 
     required_keys = ["neLat", "neLng", "swLat", "swLng"]
-    if not all(key in body for key in required_keys):
-        return jsonify(error="Missing required parameters in the request body"), 400
-    neLat = float(body["neLat"])
-    neLng = float(body["neLng"])
-    swLat = float(body["swLat"])
-    swLng = float(body["swLng"])
-    mapList = Resource.query.filter(
+    missing_keys = [key for key in required_keys if key not in body or body[key] is None]
+
+    if missing_keys:
+        print(f"❌ Missing required parameters: {missing_keys}")  # ✅ LOG missing params
+        return jsonify(error=f"Missing required parameters: {', '.join(missing_keys)}"), 400
+
+    try:
+        neLat = float(body["neLat"])
+        neLng = float(body["neLng"])
+        swLat = float(body["swLat"])
+        swLng = float(body["swLng"])
+    except (TypeError, ValueError) as e:
+        print(f"❌ Invalid latitude/longitude values: {str(e)}")  # ✅ LOG parsing errors
+        return jsonify(error=f"Invalid latitude/longitude values: {str(e)}"), 400
+
+    print(f"🌍 Querying resources in bounding box: NE({neLat}, {neLng}) - SW({swLat}, {swLng})")
+
+    resources = Resource.query.filter(
         and_(
-            not_(Resource.latitude == None),
-            not_(Resource.longitude == None),
+            Resource.latitude.isnot(None),
+            Resource.longitude.isnot(None),
             cast(Resource.latitude, Float) <= neLat,
             cast(Resource.latitude, Float) >= swLat,
             cast(Resource.longitude, Float) <= neLng,
             cast(Resource.longitude, Float) >= swLng,
         )
     ).all()
-    new_resources = [r.serialize() for r in mapList]
-    return jsonify(data=new_resources)
+
+    print(f"🔎 Found {len(resources)} resources.")  # ✅ LOG resources found
+
+    return jsonify(data=[r.serialize() for r in resources])
+
+# @api.route("/getBResults", methods=["POST"])
+# def getBResults():
+#     body = request.get_json()
+
+#     if not body:
+#         return jsonify(error="Missing request body"), 400
+
+#     # ✅ Validate required fields
+#     required_keys = ["neLat", "neLng", "swLat", "swLng"]
+#     missing_keys = [key for key in required_keys if key not in body or body[key] is None]
+
+#     if missing_keys:
+#         return jsonify(error=f"Missing required parameters: {', '.join(missing_keys)}"), 400
+
+#     try:
+#         neLat = float(body["neLat"])
+#         neLng = float(body["neLng"])
+#         swLat = float(body["swLat"])
+#         swLng = float(body["swLng"])
+#     except (TypeError, ValueError) as e:
+#         return jsonify(error=f"Invalid latitude/longitude values: {str(e)}"), 400
+
+#     print(f"📥 Received Request: {body}")
+#     print(f"🌍 Bounding Box: NE({neLat}, {neLng}) - SW({swLat}, {swLng})")
+
+#     # ✅ Query resources in bounding box
+#     resources = Resource.query.filter(
+#         and_(
+#             Resource.latitude.isnot(None),
+#             Resource.longitude.isnot(None),
+#             cast(Resource.latitude, Float) <= neLat,
+#             cast(Resource.latitude, Float) >= swLat,
+#             cast(Resource.longitude, Float) <= neLng,
+#             cast(Resource.longitude, Float) >= swLng,
+#         )
+#     ).all()
+
+#     print(f"🔎 Found {len(resources)} resources within bounds.")
+
+#     # ✅ Return all resources, filtering happens on the frontend
+#     return jsonify(data=[r.serialize() for r in resources])
+
+# @api.route("/getBResults", methods=["POST"])
+# def getBResults():
+#     body = request.get_json()
+
+#     if not body:
+#         return jsonify(error="Missing request body"), 400
+
+#     # ✅ Validate required fields
+#     required_keys = ["neLat", "neLng", "swLat", "swLng", "resources"]
+#     missing_keys = [key for key in required_keys if key not in body or body[key] is None]
+
+#     if missing_keys:
+#         return jsonify(error=f"Missing required parameters: {', '.join(missing_keys)}"), 400
+
+#     try:
+#         neLat = float(body["neLat"])
+#         neLng = float(body["neLng"])
+#         swLat = float(body["swLat"])
+#         swLng = float(body["swLng"])
+#     except (TypeError, ValueError) as e:
+#         return jsonify(error=f"Invalid latitude/longitude values: {str(e)}"), 400
+
+#     print(f"📥 Received Request: {body}")
+#     print(f"🌍 Bounding Box: NE({neLat}, {neLng}) - SW({swLat}, {swLng})")
+
+#     # ✅ Query resources in bounding box
+#     mapList = Resource.query.filter(
+#         and_(
+#             Resource.latitude.isnot(None),
+#             Resource.longitude.isnot(None),
+#             cast(Resource.latitude, Float) <= neLat,
+#             cast(Resource.latitude, Float) >= swLat,
+#             cast(Resource.longitude, Float) <= neLng,
+#             cast(Resource.longitude, Float) >= swLng,
+#         )
+#     ).all()
+
+#     print(f"🔎 Found {len(mapList)} resources within bounds.")
+
+#     if not mapList:
+#         return jsonify({"data": []})  # If no results, return empty list
+
+#     # ✅ Extract selected categories
+#     categories_to_keep = [
+#         category for category, value in body["resources"].items() if value
+#     ]
+    
+#     print(f"📌 Selected categories to keep: {categories_to_keep}")
+
+#     # ✅ Function to check if a resource category matches the selected filters
+#     def resource_category_matches(categories_to_check):
+#         print(f"🔎 Checking categories: {categories_to_check} (Must match: {categories_to_keep})")
+
+#         if not categories_to_keep:
+#             print("🚫 No category filters applied, skipping filtering.")
+#             return True  # ✅ If no filters, allow all resources
+
+#         if isinstance(categories_to_check, str):
+#             categories = [cat.strip().lower() for cat in categories_to_check.split(",")]
+#             matching = any(cat in categories_to_keep for cat in categories)
+#             if not matching:
+#                 print(f"🚫 Excluding resource with categories: {categories}")
+#             return matching
+        
+#         print("❌ Invalid category format, skipping resource.")
+#         return False  # ✅ Default to filtering out non-matching resources
+
+#     # ✅ Extract selected days (if any)
+#     days_to_keep = body.get("days", {})
+#     days_to_keep = [day for day, value in days_to_keep.items() if value]
+
+#     print(f"📌 Selected days to keep: {days_to_keep}")
+
+#     # ✅ Filter resources based on categories & days
+#     filtered_resources = set()
+#     for r in mapList:
+#         category_matched = resource_category_matches(r.category)
+
+#         # ✅ Filter based on schedule if days are selected
+#         if days_to_keep:
+#             if r.schedule:
+#                 schedule_matched = any(
+#                     getattr(r.schedule, day + "Start", None) not in (None, "")
+#                     for day in days_to_keep
+#                 )
+#             else:
+#                 schedule_matched = False
+#         else:
+#             schedule_matched = True  # ✅ If no days selected, allow all
+
+#         # ✅ Only add resources that match BOTH category & schedule
+#         if category_matched and schedule_matched:
+#             print(f"✅ Keeping resource {r.id} with category {r.category}")
+#             filtered_resources.add(r)
+#         else:
+#             print(f"🚫 Excluding resource {r.id} with category {r.category}")
+
+#     print(f"✅ Returning {len(filtered_resources)} filtered resources.")
+
+#     return jsonify(data=[r.serialize() for r in filtered_resources])
 
 
 
@@ -508,7 +616,6 @@ def create_resource():
     if resource:
         return jsonify({"status": "error", "message": "Resource already exists"}), 400
 
-    # Handle latitude/longitude: default to Los Angeles if missing or empty
     latitude = request_body.get("latitude")
     longitude = request_body.get("longitude")
 
@@ -604,66 +711,124 @@ def create_resource():
 
 #     return jsonify({"message": "Resource edited successfully!", "status": "true"}), 200
 
+
+@api.route("/unapproved_comments", methods=["GET", "OPTIONS"])
+@cross_origin()  # Ensures CORS applies to this route
+def get_unapproved_comments():
+    if request.method == "OPTIONS":
+        return '', 204  # Respond with No Content for preflight requests
+
+    comments = Comment.query.filter_by(approved=False).all()
+    return jsonify({"comments": [comment.serialize() for comment in comments]}), 200
+
+
+@api.route("/approve_comment/<int:comment_id>", methods=["PUT", "OPTIONS"])
+@cross_origin()
+@jwt_required()
+def approve_comment(comment_id):
+    if request.method == "OPTIONS":
+        return '', 204  # Preflight response
+
+    try:
+        user_identity = get_jwt_identity()
+        print(f"🔐 Authenticated User: {user_identity}")
+        print(f"📡 Approving comment ID: {comment_id}")
+
+        comment = Comment.query.get(comment_id)
+        if not comment:
+            print(f"❌ Comment {comment_id} not found")
+            return jsonify({"error": "Comment not found"}), 404
+
+        comment.approved = True
+        db.session.commit()
+        
+        print(f"✅ Comment {comment_id} approved")
+        return jsonify({"message": "Comment approved successfully", "comment_id": comment.id})
+
+    except Exception as e:
+        print(f"🚨 Error in approve_comment: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+
 @api.route("/editResource/<int:resource_id>", methods=["PUT"])
 @jwt_required()
 def edit_resource(resource_id):
-    request_body = request.get_json()
-    resource = Resource.query.get(resource_id)
+    try:
+        request_body = request.get_json()
+        resource = Resource.query.get(resource_id)
+        if not resource:
+            print("Resource Not Found:", resource_id)
+            return jsonify({"message": "Resource not found"}), 404
 
-    if not resource:
-        return jsonify({"message": "Resource not found"}), 404
+        current_user = get_jwt_identity()
+        current_user_id = current_user.get("id")
 
-    # Update resource fields
-    resource.name = request_body.get("name", resource.name)
-    resource.address = request_body.get("address", resource.address)
-    resource.phone = request_body.get("phone", resource.phone)
-    resource.category = request_body.get("category", resource.category)
-    resource.website = request_body.get("website", resource.website)
-    resource.description = request_body.get("description", resource.description)
-    resource.alert = request_body.get("alert", resource.alert)
-
-    # Update latitude & longitude
-    if "latitude" in request_body:
-        resource.latitude = float(request_body["latitude"]) if request_body["latitude"] is not None else None
-
-    if "longitude" in request_body:
-        resource.longitude = float(request_body["longitude"]) if request_body["longitude"] is not None else None
-    # Update associated users
-    if "user_ids" in request_body:
-        # Delete old assignments
-        ResourceUsers.query.filter_by(resource_id=resource_id).delete()
-        # Add new ones
-        for user_id in request_body["user_ids"]:
-            new_assignment = ResourceUsers(resource_id=resource_id, user_id=user_id)
-            db.session.add(new_assignment)
-
-    db.session.commit()
-    return jsonify({"message": "Resource updated successfully"}), 200
+        if current_user_id != 1:
+            is_authorized = ResourceUsers.query.filter_by(resource_id=resource_id, user_id=current_user_id).first()
+            if not is_authorized:
+                print("Unauthorized User:", current_user_id)
+                return jsonify({"message": "You are not authorized to edit this resource"}), 403
 
 
-# GET RESOURCE
-# @api.route("/getResource/<int:resource_id>", methods=["GET"])
-# def get_resource(resource_id):
-#     resource = Resource.query.get(resource_id)
-#     if resource:
-#         response_data = resource.serialize()
-#         return jsonify(response_data), 200
-#     else:
-#         return jsonify({"message": "Resource not found"}), 404
+        fields = ["name", "address", "phone", "website", "description", "alert", "image", "image2", "updated"]
+        for field in fields:
+            if field in request_body:
+                setattr(resource, field, request_body[field])
+
+        if "category" in request_body:
+            resource.category = ", ".join(request_body["category"]) if isinstance(request_body["category"], list) else request_body["category"]
+
+
+        if "latitude" in request_body:
+            resource.latitude = float(request_body["latitude"]) if request_body["latitude"] else None
+
+        if "longitude" in request_body:
+            resource.longitude = float(request_body["longitude"]) if request_body["longitude"] else None
+
+        if "schedule" in request_body and isinstance(request_body["schedule"], dict):
+            print("🔄 Updating Schedule:", request_body["schedule"])
+            schedule = Schedule.query.filter_by(resource_id=resource_id).first()
+
+            if not schedule:
+                print("⚠️ No existing schedule found, creating a new one...")
+                schedule = Schedule(resource_id=resource_id)
+                db.session.add(schedule)
+
+        for day, times in request_body["schedule"].items():
+            setattr(schedule, f"{day}Start", times.get("start") if times.get("start") else None)
+            setattr(schedule, f"{day}End", times.get("end") if times.get("end") else None)
+
+        if "user_ids" in request_body:
+            print("🔄 Updating Assigned Users:", request_body["user_ids"])
+            ResourceUsers.query.filter_by(resource_id=resource_id).delete()
+            for user_id in request_body["user_ids"]:
+                new_assignment = ResourceUsers(resource_id=resource_id, user_id=user_id)
+                db.session.add(new_assignment)
+
+        print("💾 Saving Changes...")
+        db.session.commit()  
+
+        print("✅ Resource Updated Successfully!")
+        return jsonify({"message": "Resource updated successfully"}), 200
+
+    except Exception as e:
+        print("🚨 Backend Error:", str(e))
+        return jsonify({"message": "Internal Server Error", "error": str(e)}), 500
+
+
+
+
 
 @api.route("/getResource/<int:resource_id>", methods=["GET"])
 def get_resource(resource_id):
     resource = Resource.query.get(resource_id)
-    if not resource:
+    if resource:
+        response_data = resource.serialize()
+        return jsonify(response_data), 200
+    else:
         return jsonify({"message": "Resource not found"}), 404
 
-    user_ids = [ru.user_id for ru in resource.resource_users]
-
-    return jsonify({
-        "id": resource.id,
-        "name": resource.name,
-        "user_ids": user_ids 
-    })
 
 
 

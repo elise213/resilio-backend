@@ -1,13 +1,11 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 db = SQLAlchemy()
-
-
 
 class User(db.Model):
     __tablename__ = "User"
@@ -19,12 +17,14 @@ class User(db.Model):
     avatar = db.Column(db.String(80))
     picture = db.Column(db.String(80))
     city = db.Column(db.String(80), nullable=True)
-    # Many-to-Many relationship with Resource
+    # Many-to-Many relationship with Resource via ResourceUsers
     resources = db.relationship(
         "Resource",
-        secondary="resource_users",  # Specify the association table
-        back_populates="users"
+        secondary="resource_users",
+        back_populates="users",
+        overlaps="user_resources"
     )
+
     # One-to-Many relationship with ResourceUsers (Join Table)
     user_resources = db.relationship(
         "ResourceUsers",
@@ -57,8 +57,8 @@ class ResourceUsers(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("User.id", ondelete="CASCADE"), primary_key=True)
 
     # Explicit relationships to ensure correct joining
-    resource = db.relationship("Resource", back_populates="resource_users")
-    user = db.relationship("User", back_populates="user_resources")
+    resource = db.relationship("Resource", back_populates="resource_users", overlaps="users")
+    user = db.relationship("User", back_populates="user_resources", overlaps="resources")
 
 
 
@@ -77,21 +77,26 @@ class Resource(db.Model):
     image = db.Column(db.String(500), unique=False, nullable=True)
     image2 = db.Column(db.String(500), unique=False, nullable=True)
     logo = db.Column(db.String(500), unique=False, nullable=True)
+    # Many-to-Many relationship with User via ResourceUsers
     users = db.relationship(
         "User",
-        secondary="resource_users", 
-        back_populates="resources"
+        secondary="resource_users",
+        back_populates="resources",
+        overlaps="resource_users"
     )
+
+    # One-to-Many relationship with ResourceUsers (Join Table)
     resource_users = db.relationship(
         "ResourceUsers",
         back_populates="resource",
         cascade="all, delete-orphan",
         overlaps="users"
     )
-    updated = db.Column(db.DateTime, nullable=True) 
+
+    updated = db.Column(db.DateTime, nullable=True)
     comment = db.relationship("Comment", backref="Resource", lazy=True)
-    schedule = db.relationship(
-        "Schedule", backref="Resource", lazy=True, uselist=False)
+    schedule = db.relationship("Schedule", backref="Resource", lazy=True, uselist=False)
+
 
     def __repr__(self):
         return f'<Resource {self.name}>'
@@ -114,9 +119,11 @@ class Resource(db.Model):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "schedule": serialized_schedule,
-           "updated": self.updated.isoformat(),
-           "users": [user.id for user in self.users],
+            "updated": self.updated.isoformat() if self.updated else None,
+            "users": [user.id for user in self.users],
         }
+
+
 
 
 class Comment(db.Model):
@@ -127,6 +134,7 @@ class Comment(db.Model):
     comment_cont = db.Column(db.String(280), nullable=False)
     rating_value = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+    approved = db.Column(db.Boolean, nullable=False, default=False)  # NEW COLUMN
     comment_likes = relationship("CommentLike", backref="Comment", lazy="dynamic")
 
     def __repr__(self):
@@ -146,9 +154,11 @@ class Comment(db.Model):
             "comment_cont": self.comment_cont,
             "rating_value": self.rating_value,
             "created_at": self.created_at,
+            "approved": self.approved, 
             "like_count": like_count,
-             "likes": likes,
+            "likes": likes,
         }
+
 
 class CommentLike(db.Model):
     __tablename__ = "CommentLike"
