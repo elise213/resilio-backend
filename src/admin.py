@@ -29,9 +29,9 @@ class ResourceModelView(ModelView):
 class ResourceUsersModelView(ModelView):
     column_list = ("id", "resource_id", "user_id")
     form_columns = ("resource_id", "user_id")
-    can_create = True   # Allow adding new entries
-    can_edit = True     # Allow editing existing entries
-    can_delete = True   # Allow deletion if needed
+    can_create = True   
+    can_edit = True     
+    can_delete = True   
 
 
 class ScheduleModelView(ModelView):

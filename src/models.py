@@ -4,8 +4,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from datetime import datetime
-
-db = SQLAlchemy()
+from src.extensions import db
 
 class User(db.Model):
     __tablename__ = "User"
@@ -30,36 +29,30 @@ class User(db.Model):
         "ResourceUsers",
         back_populates="user",
         cascade="all, delete-orphan",
-        overlaps="resources"
+        overlaps="resources,users"
     )
 
     def __repr__(self):
         return f'<User {self.email}>'
 
     def serialize(self):
-        is_org_value = 1 if str(self.is_org).lower() == "true" else 0
         return {
             "id": self.id,
             "name": self.name,
             "email": self.email,
-            "is_org": is_org_value,
+            "is_org": self.is_org,
             "avatar": self.avatar,
             "picture": self.picture,
             "city": self.city,
           "resources": [resource.id for resource in self.resources],
         }
 
-
 class ResourceUsers(db.Model):
     __tablename__ = "resource_users"
-
     resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id", ondelete="CASCADE"), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("User.id", ondelete="CASCADE"), primary_key=True)
-
-    # Explicit relationships to ensure correct joining
-    resource = db.relationship("Resource", back_populates="resource_users", overlaps="users")
-    user = db.relationship("User", back_populates="user_resources", overlaps="resources")
-
+    user = db.relationship("User", back_populates="user_resources", overlaps="resources,users")
+    resource = db.relationship("Resource", back_populates="resource_users", overlaps="users,resources")
 
 
 class Resource(db.Model):
@@ -77,24 +70,22 @@ class Resource(db.Model):
     image = db.Column(db.String(500), unique=False, nullable=True)
     image2 = db.Column(db.String(500), unique=False, nullable=True)
     logo = db.Column(db.String(500), unique=False, nullable=True)
-    # Many-to-Many relationship with User via ResourceUsers
     users = db.relationship(
         "User",
         secondary="resource_users",
         back_populates="resources",
-        overlaps="resource_users"
+        overlaps="resource_users,user_resources"
     )
 
-    # One-to-Many relationship with ResourceUsers (Join Table)
     resource_users = db.relationship(
         "ResourceUsers",
         back_populates="resource",
         cascade="all, delete-orphan",
-        overlaps="users"
+         overlaps="users,resources"
     )
 
     updated = db.Column(db.DateTime, nullable=True)
-    comment = db.relationship("Comment", backref="Resource", lazy=True)
+    comments = db.relationship("Comment", back_populates="resource", lazy=True)
     schedule = db.relationship("Schedule", backref="Resource", lazy=True, uselist=False)
 
 
@@ -115,16 +106,12 @@ class Resource(db.Model):
             "image": self.image,
             "image2": self.image2,
             "logo": self.logo,
-            # "user_id": self.user_id,
             "latitude": self.latitude,
             "longitude": self.longitude,
             "schedule": serialized_schedule,
             "updated": self.updated.isoformat() if self.updated else None,
             "users": [user.id for user in self.users],
         }
-
-
-
 
 class Comment(db.Model):
     __tablename__ = "Comment"
@@ -134,30 +121,67 @@ class Comment(db.Model):
     comment_cont = db.Column(db.String(280), nullable=False)
     rating_value = db.Column(db.Integer, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
-    approved = db.Column(db.Boolean, nullable=False, default=False)  # NEW COLUMN
-    comment_likes = relationship("CommentLike", backref="Comment", lazy="dynamic")
+    approved = db.Column(db.Boolean, nullable=False, default=False)
+
+    # Relationships
+    user = db.relationship("User", backref="comments", lazy=True)
+    resource = db.relationship("Resource", back_populates="comments", lazy=True)
+    comment_likes = db.relationship("CommentLike", backref="Comment", lazy="dynamic")
 
     def __repr__(self):
         return f'<Comment {self.id}>'
 
     def serialize(self):
-        user = User.query.get(self.user_id)
-        resource = Resource.query.get(self.resource_id)
-        like_count = self.comment_likes.count() 
-        likes = [{"user_id": like.user_id} for like in self.comment_likes]  
+        like_count = self.comment_likes.count()
+        likes = [{"user_id": like.user_id} for like in self.comment_likes]
         return {
             "comment_id": self.id,
             "user_id": self.user_id,
-            "user_name": user.name if user else None,
+            "user_name": self.user.name if self.user else None,
             "resource_id": self.resource_id,
-            "resource_name": resource.name if resource else None,
+            "resource_name": self.resource.name if self.resource else None,
             "comment_cont": self.comment_cont,
             "rating_value": self.rating_value,
             "created_at": self.created_at,
-            "approved": self.approved, 
+            "approved": self.approved,
             "like_count": like_count,
             "likes": likes,
         }
+
+# class Comment(db.Model):
+#     __tablename__ = "Comment"
+#     id = db.Column(db.Integer, primary_key=True)
+#     user_id = db.Column(db.Integer, db.ForeignKey("User.id"))
+#     resource_id = db.Column(db.Integer, db.ForeignKey("Resource.id"))
+#     comment_cont = db.Column(db.String(280), nullable=False)
+#     rating_value = db.Column(db.Integer, nullable=True)
+#     created_at = db.Column(db.DateTime(timezone=True), server_default=func.now())
+#     approved = db.Column(db.Boolean, nullable=False, default=False)  # NEW COLUMN
+#     comment_likes = relationship("CommentLike", backref="Comment", lazy="dynamic")
+
+#     def __repr__(self):
+#         return f'<Comment {self.id}>'
+
+#     def serialize(self):
+#         # user = User.query.get(self.user_id)
+#         # resource = Resource.query.get(self.resource_id)
+#         user = db.relationship("User", backref="comments", lazy=True)
+#         resource = db.relationship("Resource", backref="comments", lazy=True)
+#         like_count = self.comment_likes.count() 
+#         likes = [{"user_id": like.user_id} for like in self.comment_likes]  
+#         return {
+#             "comment_id": self.id,
+#             "user_id": self.user_id,
+#             "user_name": user.name if user else None,
+#             "resource_id": self.resource_id,
+#             "resource_name": resource.name if resource else None,
+#             "comment_cont": self.comment_cont,
+#             "rating_value": self.rating_value,
+#             "created_at": self.created_at,
+#             "approved": self.approved, 
+#             "like_count": like_count,
+#             "likes": likes,
+#         }
 
 
 class CommentLike(db.Model):
@@ -186,8 +210,8 @@ class Favorites(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=True)
     userId = db.Column(db.Integer, db.ForeignKey('User.id'), nullable=False)
-    resource = db.relationship('Resource', backref='Favorites', lazy=True)
     resourceId = db.Column(db.Integer, db.ForeignKey('Resource.id'), nullable=False)
+    resource = db.relationship('Resource', backref='Favorites', lazy=True)
 
     def __repr__(self):
         return f'<Favorites {self.id}>'

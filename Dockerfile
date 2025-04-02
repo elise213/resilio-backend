@@ -8,7 +8,10 @@ WORKDIR /app
 ADD . /app
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --use-feature=fast-deps -r requirements.txt
+
 
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
