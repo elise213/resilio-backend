@@ -6,7 +6,6 @@ from flask_jwt_extended import (
     jwt_required,
     verify_jwt_in_request
 )
-
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import cast, Float, and_, not_
 import logging
@@ -16,16 +15,10 @@ from flask_mail import Message
 from src.models import User, Resource, Comment, Favorites, Schedule, CommentLike, ResourceUsers
 from src.send_email import send_email
 from datetime import datetime, timezone, timedelta
-# from dateutil import parser  
 from flask_cors import cross_origin
-# from flask import Response
 from src.extensions import db, mail
-# import json
-
 api = Blueprint("api", __name__)
-
 AUTHORIZED_ADMIN_IDS = {1,2, 3, 4, 8}  
-
 s3 = boto3.client(
     "s3",
     aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
@@ -41,7 +34,6 @@ def export_backup():
     comment_likes = [like.serialize() for like in CommentLike.query.all()]
     favorites = [fav.serialize() for fav in Favorites.query.all()]
     schedules = [schedule.serialize() for schedule in Schedule.query.all()]
-
     return jsonify({
         "users": users,
         "resources": resources,
@@ -78,7 +70,6 @@ def create_token():
     identity=str(user.id),  
     expires_delta=expiration
 )   
-
     return jsonify({
         "access_token": access_token,
         "user_id": user.id,
@@ -86,7 +77,6 @@ def create_token():
         "name": user.name,
         "favorites": favorites,
     })
-
 def send_org_verification_email(name, email):
     msg = Message(
         "Organization Verification Required",
@@ -122,7 +112,6 @@ def get_resource_users(resource_id):
     return jsonify({"users": users_list}), 200
 
 
-
 @api.route("/createUser", methods=["POST"])
 def create_user():
     if request.method == "POST":
@@ -145,7 +134,6 @@ def create_user():
             password=generate_password_hash(request_body["password"], method="pbkdf2:sha256"),
             avatar=request_body.get("userAvatar"),
         )
-
         db.session.add(new_user)
         db.session.commit()
         if is_org == 1:
@@ -190,18 +178,14 @@ def change_password():
         new_password = data.get("new_password")
         if not current_password or not new_password:
             return jsonify({"error": "Both current and new passwords are required"}), 400
-
         user = User.query.get(user_id)
         if not user:
             return jsonify({"error": "User not found"}), 404
-
         if not check_password_hash(user.password, current_password):
             return jsonify({"error": "Current password is incorrect"}), 403
-
         user.password = generate_password_hash(new_password, method="pbkdf2:sha256")
         db.session.commit()
         return jsonify({"message": "Password changed successfully"}), 200
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
@@ -235,9 +219,6 @@ def send_email_route():
 
 
 # __________________________________________________COMMENTS
-
-
-
 @api.route("/getCommentLikes/<int:comment_id>", methods=["GET"])
 def get_comment_likes(comment_id):
     like_count = CommentLike.query.filter_by(comment_id=comment_id).count()
@@ -250,20 +231,15 @@ def like_comment(comment_id):
     user_id = get_jwt_identity()
     if not user_id:
         return jsonify({"message": "Invalid user identity"}), 400
-
     comment = Comment.query.get(comment_id)
     if not comment:
         return jsonify({"message": "Comment not found"}), 404
-
     existing_like = CommentLike.query.filter_by(user_id=user_id, comment_id=comment_id).first()
-
     if existing_like:
-        return jsonify({"message": "Already liked"}), 409  # Conflict
-
+        return jsonify({"message": "Already liked"}), 409  
     new_like = CommentLike(user_id=user_id, comment_id=comment_id)
     db.session.add(new_like)
     db.session.commit()
-
     return jsonify({"message": "Comment liked", "like": {"user_id": user_id}}), 201
 
 
@@ -271,16 +247,12 @@ def like_comment(comment_id):
 @jwt_required()
 def unlike_comment(comment_id):
     user_id = get_jwt_identity()
-
     like = CommentLike.query.filter_by(user_id=user_id, comment_id=comment_id).first()
     if not like:
         return jsonify({"message": "Like not found"}), 404
-
     db.session.delete(like)
     db.session.commit()
-
     return jsonify({"message": "Comment unliked"}), 200
-
 
 
 @api.route("/createCommentAndRating", methods=["POST"])
@@ -288,13 +260,10 @@ def unlike_comment(comment_id):
 def create_comment_and_rating():
     user_id = get_jwt_identity()
     data = request.get_json()
-
-    # Fix: allow rating_value = 0
     if not data.get("comment_content"):
         return jsonify({"message": "Please include a message"}), 400
     if "resource_id" not in data or "rating_value" not in data:
         return jsonify({"message": "Missing resource_id or rating_value"}), 400
-
     comment = Comment(
         user_id=user_id,
         resource_id=data["resource_id"],
@@ -303,9 +272,7 @@ def create_comment_and_rating():
     )
     db.session.add(comment)
     db.session.commit()
-
     return jsonify({"comment": comment.serialize()}), 201
-
 
 
 @api.route("/createComment", methods=["POST"])
@@ -315,7 +282,6 @@ def create_comment():
     data = request.get_json()
     if not data.get("comment_content"):
         return jsonify({"message": "Please include a message"}), 400
-
     comment = Comment(
         user_id=user_id,
         resource_id=data["resource_id"],
@@ -323,7 +289,6 @@ def create_comment():
     )
     db.session.add(comment)
     db.session.commit()
-
     return jsonify({"comment": comment.serialize()}), 201
 
 
@@ -331,17 +296,13 @@ def create_comment():
 @jwt_required()
 def delete_comment(comment_id):
     user_id = get_jwt_identity()
-
     comment = Comment.query.get(comment_id)
     if not comment:
         return jsonify({"message": "Comment not found"}), 404
-
     if comment.user_id != user_id:
         return jsonify({"message": "Unauthorized"}), 403
-
     db.session.delete(comment)
     db.session.commit()
-
     return jsonify({"deleted": True, "comment_id": comment_id}), 200
 
 
@@ -358,7 +319,6 @@ def getCommentsByResourceId(resourceId):
     comments = Comment.query.filter_by(resource_id=resourceId, approved=True).all()
     serialized_comments = [comment.serialize() for comment in comments]
     return serialized_comments
-
 
 
 def getCommentsByUserId(user_id):
@@ -436,38 +396,30 @@ def get_current_user():
 def getSchedules():
     schedules = Schedule.query.all()
     serialized_schedule = [sch.serialize() for sch in schedules]
-    # return serialized_schedule
     return jsonify(schedules=serialized_schedule)
-
 
 
 @api.route("/getBResults", methods=["GET", "OPTIONS", "POST"])
 @cross_origin()
 def getBResults():
     body = request.get_json()
-    print(f"📥 Received API Request: {body}") 
-
+    print(f"Received API Request: {body}") 
     if not body:
         return jsonify(error="Missing request body"), 400
-
     required_keys = ["neLat", "neLng", "swLat", "swLng"]
     missing_keys = [key for key in required_keys if key not in body or body[key] is None]
-
     if missing_keys:
-        print(f"❌ Missing required parameters: {missing_keys}") 
+        print(f" Missing required parameters: {missing_keys}") 
         return jsonify(error=f"Missing required parameters: {', '.join(missing_keys)}"), 400
-
     try:
         neLat = float(body["neLat"])
         neLng = float(body["neLng"])
         swLat = float(body["swLat"])
         swLng = float(body["swLng"])
     except (TypeError, ValueError) as e:
-        print(f"❌ Invalid latitude/longitude values: {str(e)}")  
+        print(f" Invalid latitude/longitude values: {str(e)}")  
         return jsonify(error=f"Invalid latitude/longitude values: {str(e)}"), 400
-
-    print(f"🌍 Querying resources in bounding box: NE({neLat}, {neLng}) - SW({swLat}, {swLng})")
-
+    print(f"Querying resources in bounding box: NE({neLat}, {neLng}) - SW({swLat}, {swLng})")
     resources = Resource.query.filter(
         and_(
             Resource.latitude.isnot(None),
@@ -478,11 +430,8 @@ def getBResults():
             cast(Resource.longitude, Float) >= swLng,
         )
     ).all()
-
     print(f"🔎 Found {len(resources)} resources.") 
-
     return jsonify(data=[r.serialize() for r in resources])
-
 
 @api.route("/createResource", methods=["POST"])
 @jwt_required()
@@ -514,7 +463,6 @@ def create_resource():
         image2=request_body["image2"],
         updated=datetime.now(timezone.utc), 
     )
-
     db.session.add(resource)
     db.session.commit()
     days = request_body.get("days", {})
@@ -537,7 +485,6 @@ def create_resource():
     )
     db.session.add(schedule)
     db.session.commit()
-
     return jsonify({"status": "success"}), 200
 
 
@@ -547,22 +494,17 @@ def create_resource():
 def get_unapproved_comments():
     if request.method == "OPTIONS":
         return '', 204
-
     user_id = get_jwt_identity()
-    print("🧠 JWT identity:", user_id)
-
+    print("JWT identity:", user_id)
     try:
         user_id = int(user_id)
     except (ValueError, TypeError):
         return jsonify({"message": "Invalid user identity"}), 401
-
     if user_id not in AUTHORIZED_ADMIN_IDS:
-        print(f"❌ Unauthorized access by user {user_id}")
+        print(f" Unauthorized access by user {user_id}")
         return jsonify({"message": "Unauthorized"}), 403
-
     comments = Comment.query.filter_by(approved=False).all()
     return jsonify({"comments": [comment.serialize() for comment in comments]}), 200
-
 
 
 @api.route("/approve_comment/<int:comment_id>", methods=["PUT", "OPTIONS"])
@@ -571,27 +513,21 @@ def get_unapproved_comments():
 def approve_comment(comment_id):
     if request.method == "OPTIONS":
         return '', 204 
-
     try:
         user_identity = get_jwt_identity()
         print(f"🔐 Authenticated User: {user_identity}")
-        print(f"📡 Approving comment ID: {comment_id}")
-
+        print(f" Approving comment ID: {comment_id}")
         comment = Comment.query.get(comment_id)
         if not comment:
-            print(f"❌ Comment {comment_id} not found")
+            print(f"Comment {comment_id} not found")
             return jsonify({"error": "Comment not found"}), 404
-
         comment.approved = True
         db.session.commit()
-        
         print(f"✅ Comment {comment_id} approved")
         return jsonify({"message": "Comment approved successfully", "comment_id": comment.id})
-
     except Exception as e:
         print(f"🚨 Error in approve_comment: {e}")
         return jsonify({"error": str(e)}), 500
-
 
 
 @api.route("/editResource/<int:resource_id>", methods=["PUT"])
@@ -603,17 +539,13 @@ def edit_resource(resource_id):
         if not resource:
             print("Resource Not Found:", resource_id)
             return jsonify({"message": "Resource not found"}), 404
-
         current_user = get_jwt_identity()
         current_user_id = int(current_user["id"]) if isinstance(current_user, dict) else int(current_user)
-
-
         if current_user_id not in AUTHORIZED_ADMIN_IDS:
             is_authorized = ResourceUsers.query.filter_by(resource_id=resource_id, user_id=current_user_id).first()
             if not is_authorized:
                 print("Unauthorized User:", current_user_id)
                 return jsonify({"message": "You are not authorized to edit this resource"}), 403
-
         fields = ["name", "address", "phone", "website", "description", "alert", "image", "image2", "updated"]
         for field in fields:
             if field in request_body:
@@ -625,30 +557,27 @@ def edit_resource(resource_id):
         if "longitude" in request_body:
             resource.longitude = float(request_body["longitude"]) if request_body["longitude"] else None
         if "schedule" in request_body and isinstance(request_body["schedule"], dict):
-            print("🔄 Updating Schedule:", request_body["schedule"])
+            print(" Updating Schedule:", request_body["schedule"])
             schedule = Schedule.query.filter_by(resource_id=resource_id).first()
             if not schedule:
                 print("⚠️ No existing schedule found, creating a new one...")
                 schedule = Schedule(resource_id=resource_id)
                 db.session.add(schedule)
-
         for day, times in request_body["schedule"].items():
             setattr(schedule, f"{day}Start", times.get("start") if times.get("start") else None)
             setattr(schedule, f"{day}End", times.get("end") if times.get("end") else None)
         if "user_ids" in request_body:
-            print("🔄 Updating Assigned Users:", request_body["user_ids"])
+            print(" Updating Assigned Users:", request_body["user_ids"])
             ResourceUsers.query.filter_by(resource_id=resource_id).delete()
             for user_id in request_body["user_ids"]:
                 new_assignment = ResourceUsers(resource_id=resource_id, user_id=user_id)
                 db.session.add(new_assignment)
-
-        print("💾 Saving Changes...")
+        print(" Saving Changes...")
         db.session.commit()  
-        print("✅ Resource Updated Successfully!")
+        print(" Resource Updated Successfully!")
         return jsonify({"message": "Resource updated successfully"}), 200
-
     except Exception as e:
-        print("🚨 Backend Error:", str(e))
+        print(" Backend Error:", str(e))
         return jsonify({"message": "Internal Server Error", "error": str(e)}), 500
 
 
@@ -675,7 +604,6 @@ def log_all_requests():
 @jwt_required()
 def delete_resource(resource_id):
     user_id = int(get_jwt_identity())
-
     try:
         if user_id in [1, 3, 4, 8]: 
             resource = Resource.query.get(resource_id)
@@ -729,7 +657,6 @@ def get_all_resources():
             }
         else:
             days = {}
-
         resource_data = {
             "id": resource.id,
             "name": resource.name,
@@ -744,7 +671,6 @@ def get_all_resources():
             "updated": resource.updated,
         }
         resources_list.append(resource_data)
-
     return jsonify(resources=resources_list), 200
 
 
@@ -752,12 +678,10 @@ def get_all_resources():
 @jwt_required()
 def addFavorite():        
     user_identity = get_jwt_identity()
-
     if isinstance(user_identity, dict):
         user_id = user_identity.get("id")
     else:
         user_id = user_identity 
-
     request_body = request.get_json()
     print(f"Incoming request body: {request_body}")
     if not request_body or "resourceId" not in request_body:
@@ -786,7 +710,6 @@ def addFavorite():
         return jsonify({"message": "Failed to add favorite due to an error."}), 500
 
 
-
 @api.route("/removeFavorite", methods=["DELETE"])
 @jwt_required()
 @cross_origin()  
@@ -802,11 +725,12 @@ def removeFavorite():
     db.session.commit()
     return jsonify(message="okay")
 
+
 @api.route("/getFavorites", methods=["GET"])
 @jwt_required()
 def getFavorites():
     user_id = int(get_jwt_identity()) 
-    print("🧠 JWT Identity:", user_id)
+    print(" JWT Identity:", user_id)
     if not user_id:
         return jsonify({"message": "Invalid user identity"}), 400
     favorites = (
@@ -834,13 +758,11 @@ def getFavorites():
         }
         for favorite, resource in favorites
     ]
-
     return jsonify(favorites=serialized_favorites), 200
-
 def has_bytes(obj, path="root"):
     """Recursively check if an object contains bytes."""
     if isinstance(obj, bytes):
-        print(f"🚨 Found bytes at {path}: {obj}")
+        print(f" Found bytes at {path}: {obj}")
         return True
     elif isinstance(obj, dict):
         return any(has_bytes(v, f"{path}.{k}") for k, v in obj.items())

@@ -4,7 +4,6 @@ from flask_admin import Admin
 from src.models import db, User, CommentLike, Resource, Comment, Favorites, Schedule, ResourceUsers
 from flask_admin.contrib.sqla import ModelView
 
-
 class ResourceModelView(ModelView):
     column_list = (
         "id",
